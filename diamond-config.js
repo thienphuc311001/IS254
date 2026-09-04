@@ -1,9 +1,12 @@
 const RULES = {
-  R2_UNREALISTIC_BUDGET: { threshold: 10000000, minCarat: 2.0 },
-  R3_HIGH_PRICE_PER_CT: { natural: 150e6, lgd: 30e6 },
-  R5_PREMIUM_GIA: { budget: 100e6, keepCertCodes: [3] },
-  R9_MAX_CRITERION_GAP: 0.10,
-  R10_SANITY: { maxCarat: 6, maxPrice: 2e9 },
+  // R2 · ngưỡng giá trên mỗi carat để gắn nhãn "giá cao"
+  R2_HIGH_PRICE_PER_CT: { natural: 150e6, lgd: 30e6 },
+  // R3 · ngân sách tối thiểu để ưu tiên nhóm Natural GIA
+  R3_PREMIUM_GIA: { budget: 100e6, certCode: 3 },
+  // R4 · chênh lệch điểm WSM tối đa giữa LGD và Natural để kích hoạt ưu tiên LGD (mục đích Môi trường)
+  R4_MAX_CRITERION_GAP: 0.10,
+  // Lọc dữ liệu bất thường ở Bước 1 (Hard Filter) — không phải rule override
+  SANITY_FILTER: { maxCarat: 6, maxPrice: 2e9 },
 };
 
 const COLOR_CODE = {D:10,E:9,F:8,G:7,H:6,I:5,J:4,K:3,L:2,M:1,N:0};

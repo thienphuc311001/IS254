@@ -111,18 +111,15 @@ test('finance score depends on resale rate rather than price', () => {
   assert.notEqual(byKey.cheap.sFin, byKey['low-resale'].sFin);
 });
 
-test('R4 labels an unverified certificate without removing it from the top results', () => {
-  const result = computeWith([makeDiamond({ key: 'unverified', certCode: 0, cert: 'Không rõ' })]);
-  assert.equal(result.top5.length, 1);
-  assert.match(result.top5[0].key, /^store\|Round\|1\|10000000\|unverified$/);
-  assert.equal(result.top5[0].flagUnverifiedCert, true);
-});
-
-test('R2 warns below ten million for two-carat requests only', () => {
-  const lowBudget = computeWith([], { budget: 9500000, minCarat: 2 });
-  const atThreshold = computeWith([], { budget: 10500000, minCarat: 2 });
-  assert.ok(lowBudget.flags.some(flag => flag.id === 'R2'));
-  assert.ok(!atThreshold.flags.some(flag => flag.id === 'R2'));
+test('R2 flags stones priced above the reference per-carat threshold', () => {
+  const result = computeWith([
+    makeDiamond({ key: 'pricey', carat: 0.5, price: 100000000 }),
+    makeDiamond({ key: 'fair', carat: 2, price: 100000000 }),
+  ], { budget: 120000000 });
+  const pricey = result.top5.find(item => /\|pricey$/.test(item.key));
+  const fair = result.top5.find(item => /\|fair$/.test(item.key));
+  assert.equal(pricey.flagOverpriced, true);
+  assert.equal(fair.flagOverpriced, false);
 });
 
 test('eco blend preserves total weight and applies the configured ratio', () => {
@@ -189,7 +186,7 @@ function makeClosePair(naturalOverrides = {}, lgdOverrides = {}) {
   return data;
 }
 
-test('R9 explains a close LGD alternative only when it already leads with eco enabled', () => {
+test('R4 explains a close LGD alternative only when it already leads with eco enabled', () => {
   const data = makeClosePair();
   const weights = { wSize: 5, wFin: 5, wQual: 0, wEnv: 0 };
   const enabled = computeWith(data, { budget: 20000000, ecoPreferred: true, ...weights });
@@ -197,14 +194,14 @@ test('R9 explains a close LGD alternative only when it already leads with eco en
 
   assert.match(enabled.top5[0].key, /\|lgd-close$/);
   assert.equal(enabled.ecoOverride, true);
-  assert.ok(enabled.flags.some(flag => flag.id === 'R9'));
+  assert.ok(enabled.flags.some(flag => flag.id === 'R4' && flag.level === 'override'));
   assert.doesNotMatch(enabled.top5[0].key, /\|natural-top$/);
   assert.match(disabled.top5[0].key, /\|natural-top$/);
   assert.equal(disabled.ecoOverride, false);
-  assert.ok(!disabled.flags.some(flag => flag.id === 'R9'));
+  assert.ok(!disabled.flags.some(flag => flag.id === 'R4' && flag.level === 'override'));
 });
 
-test('R9 does not activate when a natural candidate leads despite eco preference', () => {
+test('R4 does not activate when a natural candidate leads despite eco preference', () => {
   const data = [
     makeDiamond({ key: 'natural-leader', carat: 1.1, colorCode: 10, clarityCode: 8 }),
     makeDiamond({ key: 'lgd-close', origin: 'lgd', carat: 1, resale: 0.6, colorCode: 9, clarityCode: 7 }),
@@ -212,10 +209,10 @@ test('R9 does not activate when a natural candidate leads despite eco preference
   const result = computeWith(data, { budget: 20000000, ecoPreferred: true });
   assert.match(result.top5[0].key, /\|natural-leader$/);
   assert.equal(result.ecoOverride, false);
-  assert.ok(!result.flags.some(flag => flag.id === 'R9'));
+  assert.ok(!result.flags.some(flag => flag.id === 'R4'));
 });
 
-test('R9 ignores alternatives that differ by more than the criterion gap limit', () => {
+test('R4 ignores alternatives that differ by more than the criterion gap limit', () => {
   const data = makeClosePair(
     {},
     { resale: 0.5201 },
@@ -230,10 +227,10 @@ test('R9 ignores alternatives that differ by more than the criterion gap limit',
   });
   assert.match(result.top5[0].key, /\|lgd-close$/);
   assert.equal(result.ecoOverride, false);
-  assert.ok(!result.flags.some(flag => flag.id === 'R9'));
+  assert.ok(!result.flags.some(flag => flag.id === 'R4' && flag.level === 'override'));
 });
 
-test('R5 removes non-GIA stones when a GIA candidate is present', () => {
+test('R3 removes non-GIA stones when a GIA candidate is present', () => {
   const data = [
     makeDiamond({ key: 'natural-gia', certCode: 3 }),
     makeDiamond({ key: 'lgd-gia', origin: 'lgd', certCode: 3 }),
@@ -245,10 +242,10 @@ test('R5 removes non-GIA stones when a GIA candidate is present', () => {
     'store|Round|1|10000000|lgd-gia',
     'store|Round|1|10000000|natural-gia',
   ]);
-  assert.equal(result.flags.some(flag => flag.id === 'R5'), true);
+  assert.equal(result.flags.some(flag => flag.id === 'R3'), true);
 });
 
-test('R5 stays inactive when the premium shortlist has no GIA stone', () => {
+test('R3 stays inactive when the premium shortlist has no GIA stone', () => {
   const data = [
     makeDiamond({ key: 'lgd-first', origin: 'lgd', certCode: 2, price: 120000000 }),
     makeDiamond({ key: 'natural-second', certCode: 0, price: 130000000 }),
@@ -259,11 +256,10 @@ test('R5 stays inactive when the premium shortlist has no GIA stone', () => {
     'store|Round|1|130000000|natural-second',
   ];
   assert.equal(JSON.stringify(result.top5.map(item => item.key)), JSON.stringify(expectedKeys));
-  assert.equal(result.flags.some(flag => flag.id === 'R5'), false);
-  assert.equal(result.top5.every(item => item.flagUnverifiedCert === (item.certCode === 0)), true);
+  assert.equal(result.flags.some(flag => flag.id === 'R3'), false);
 });
 
-test('R9 handles an all-LGD shortlist without runtime errors', () => {
+test('R4 handles an all-LGD shortlist without runtime errors', () => {
   const data = [
     makeDiamond({ key: 'lgd-leader', origin: 'lgd', resale: 0.6 }),
     makeDiamond({ key: 'lgd-second', origin: 'lgd', resale: 0.6, price: 10000001 }),
@@ -271,7 +267,7 @@ test('R9 handles an all-LGD shortlist without runtime errors', () => {
   const result = computeWith(data, { budget: 20000000, ecoPreferred: true });
   assert.match(result.top5[0].key, /\|lgd-leader$/);
   assert.equal(result.ecoOverride, false);
-  assert.ok(!result.flags.some(flag => flag.id === 'R9'));
+  assert.ok(!result.flags.some(flag => flag.id === 'R4'));
 });
 
 test('eco blend is hidden from slider values and exposed in compute state', () => {

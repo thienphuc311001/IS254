@@ -91,8 +91,8 @@ function compute(){
   const filtered = DATA.filter(d=>{
     if (d.price > budget || d.carat < minCarat) return false;
     if ((d.colorCode ?? 0) < minColorCode || (d.clarityCode ?? 0) < minClarityCode) return false;
-    // R10 · sanity check: loại viên dữ liệu bất thường
-    if (d.price === 0 || d.carat > RULES.R10_SANITY.maxCarat || d.price > RULES.R10_SANITY.maxPrice) return false;
+    // Sanity check (lọc dữ liệu bất thường): loại viên giá 0 hoặc ngoài biên dữ liệu
+    if (d.price === 0 || d.carat > RULES.SANITY_FILTER.maxCarat || d.price > RULES.SANITY_FILTER.maxPrice) return false;
     return true;
   });
 
@@ -116,16 +116,14 @@ function compute(){
     return {...d, sSize, sFin, sQual, sEnv, score};
   }).sort((a,b)=>b.score-a.score);
 
-  // ===== BƯỚC 3 · RULE-BASED OVERRIDE (quy tắc chuyên gia) =====
-  // Ngân sách < 30 triệu mà yêu cầu ≥ 1 carat: dữ liệu không có viên tự nhiên nào
-  // thỏa mãn nên hệ thống tự kích hoạt ghi đè, buộc gợi ý LGD.
-  const top5Raw = scored.slice(0, 8); // lấy nhiều hơn 5 để các rule còn dư địa sắp xếp lại
-
-  // ===== BƯỚC 3 · RULE-BASED OVERRIDE =====
+  // ===== BƯỚC 3 · RULE-BASED OVERRIDE (4 quy tắc R1–R4) =====
+  // WSM vẫn giữ vai trò xếp hạng chính; các rule chỉ override có điều kiện
+  // để kết quả phản ánh đúng yêu cầu nghiệp vụ.
+  const topRaw = scored.slice(0, 8); // lấy nhiều hơn 5 để các rule còn dư địa sắp xếp lại
   const flags = [];
-  let finalTop = top5Raw;
+  let finalTop = topRaw;
 
-  // R1 · LGD bắt buộc khi ngân sách không đủ mua Natural ≥ minCarat
+  // R1 · Không có Natural phù hợp (có chứng nhận) trong ngân sách + carat → ưu tiên LGD
   const noNaturalAtThreshold = !DATA.some(d =>
     d.origin==='natural' && d.carat>=minCarat && d.price<=budget &&
     (d.certCode ?? 0) > 0
@@ -134,70 +132,29 @@ function compute(){
   if (r1Active) {
     flags.push({ id:'R1', level:'override',
       msg:`Ngân sách ${fmtVND(budget)} đ với carat ≥ ${minCarat.toFixed(2)} ct không có kim cương Tự nhiên nào thỏa mãn — hệ thống ghi đè gợi ý sang LGD.` });
-  }
-
-  // R2 · cảnh báo ngân sách không thực tế
-  const r2Active = budget < RULES.R2_UNREALISTIC_BUDGET.threshold && minCarat >= RULES.R2_UNREALISTIC_BUDGET.minCarat;
-  if (r2Active) {
-    flags.push({ id:'R2', level:'warn',
-      msg:`Ngân sách dưới ${fmtVND(RULES.R2_UNREALISTIC_BUDGET.threshold)} đ với carat ≥ ${RULES.R2_UNREALISTIC_BUDGET.minCarat} ct là không thực tế kể cả với LGD. Kết quả hiển thị chỉ mang tính tham khảo.` });
-  }
-
-  // Áp R1: nếu kích hoạt, đẩy toàn bộ LGD lên trước Natural trong Top kết quả
-  if (r1Active) {
+    // Đẩy toàn bộ LGD lên trước Natural trong Top kết quả
     finalTop = [...finalTop].sort((a,b)=> (a.origin==='lgd'?0:1) - (b.origin==='lgd'?0:1));
   }
 
-  // R4 · gắn nhãn "chưa xác minh" cho cert Không rõ (không loại khỏi Top)
-  finalTop = finalTop.map(d => ({ ...d,
-    flagUnverifiedCert: (d.certCode ?? 0) === 0,
-    flagMissingCut: !d.cut,
-  }));
-
-  // R3 · nhãn "giá cao hơn mặt bằng chung"
+  // R2 · Giá cao: giá trên mỗi carat vượt ngưỡng tham chiếu → gắn nhãn trên dòng kết quả
   finalTop = finalTop.map(d => {
     const ppc = d.price / d.carat;
-    const limit = d.origin === 'natural' ? RULES.R3_HIGH_PRICE_PER_CT.natural : RULES.R3_HIGH_PRICE_PER_CT.lgd;
+    const limit = d.origin === 'natural' ? RULES.R2_HIGH_PRICE_PER_CT.natural : RULES.R2_HIGH_PRICE_PER_CT.lgd;
     return { ...d, flagOverpriced: ppc > limit };
   });
 
-  // R5 · ngân sách ≥ 100 triệu → lọc chỉ giữ GIA trong Top (nếu còn ứng viên GIA)
+  // R3 · Ưu tiên GIA: ngân sách ≥ 100 triệu và còn Natural GIA phù hợp → lọc Top chỉ giữ GIA
   const giaAvailable = finalTop.some(d => d.origin==='natural' && (d.certCode ?? 0) === 3);
-  const r5Active = budget >= RULES.R5_PREMIUM_GIA.budget && giaAvailable;
-  if (r5Active) {
+  const r3Active = budget >= RULES.R3_PREMIUM_GIA.budget && giaAvailable;
+  if (r3Active) {
     finalTop = finalTop.filter(d => (d.certCode ?? 0) === 3);
-    flags.push({ id:'R5', level:'info',
+    flags.push({ id:'R3', level:'info',
       msg:'Phân khúc trên 100 triệu — hệ thống ưu tiên chứng nhận GIA theo chuẩn ngành.' });
   }
 
-  // R6 · cảnh báo chất lượng thấp trên viên Top 1
-  const top1 = finalTop[0];
-  if (top1) {
-    const lowColor = (top1.colorCode ?? 99) <= COLOR_CODE.K;
-    const lowClarity = (top1.clarityCode ?? 99) <= CLARITY_CODE.SI2;
-    if (lowColor || lowClarity) {
-      flags.push({ id:'R6', level:'warn',
-        msg:'Viên xếp hạng 1 có màu ≤ K hoặc độ trong ≤ SI2 — phù hợp nếu ưu tiên size lớn trên đồng tiền, nhưng kém sáng và dễ thấy tạp hơn.' });
-    }
-  }
+  // R4 · Điều chỉnh theo mục đích sử dụng
 
-  // R7 · mục đích "Tích lũy": ép Natural GIA lên Top 1 nếu có thể
-  if (purpose === 'invest') {
-    const bestNatGia = scored.find(d => d.origin==='natural' && (d.certCode ?? 0)===3);
-    if (bestNatGia && finalTop[0] && finalTop[0].origin !== 'natural') {
-      const exists = finalTop.findIndex(d => d.key === bestNatGia.key);
-      if (exists !== -1 && exists !== 0) {
-        [finalTop[0], finalTop[exists]] = [finalTop[exists], finalTop[0]];
-      } else if (exists === -1) {
-        finalTop.unshift({...bestNatGia});
-        finalTop.pop();
-      }
-      flags.push({ id:'R7', level:'override',
-        msg:`Mục đích Tích lũy / Đầu tư: hệ thống ưu tiên Kim cương Tự nhiên GIA vì khả năng giữ giá ${resalePct('natural')}% so với ~${resalePct('lgd')}% của LGD.` });
-    }
-  }
-
-  // R8 · mục đích "Cưới": tránh Top 1 màu ≤ J nếu có lựa chọn sáng hơn
+  // R4a · Cưới: Top 1 có màu quá thấp (≤ J) → ưu tiên viên sáng hơn (≥ I)
   if (purpose === 'wedding' && finalTop.length > 1) {
     const t1 = finalTop[0];
     if ((t1.colorCode ?? 99) <= COLOR_CODE.J) {
@@ -205,13 +162,13 @@ function compute(){
       if (better) {
         const idx = finalTop.indexOf(better);
         [finalTop[0], finalTop[idx]] = [finalTop[idx], finalTop[0]];
-        flags.push({ id:'R8', level:'info',
+        flags.push({ id:'R4', level:'info',
           msg:'Mục đích Cưới / Diện: hệ thống ưu tiên viên có màu sáng hơn (≥ I) cho Top 1.' });
       }
     }
   }
 
-  // R9 chỉ giải thích kết quả tương đương phi-môi trường. Thứ hạng đã do eco-blend quyết định.
+  // R4b · Môi trường: Natural và LGD có điểm WSM gần nhau → ưu tiên LGD
   let ecoOverride = false;
   let ecoTop = finalTop;
   if (ecoPreferred && finalTop.length > 0) {
@@ -227,10 +184,10 @@ function compute(){
         )
       ));
 
-      if (nearestNaturalGap <= RULES.R9_MAX_CRITERION_GAP) {
+      if (nearestNaturalGap <= RULES.R4_MAX_CRITERION_GAP) {
         ecoOverride = true;
-        flags.push({ id:'R9', level:'override',
-          msg:'Đã ưu tiên kim cương nhân tạo vì tương đương chất lượng, thân thiện môi trường hơn.' });
+        flags.push({ id:'R4', level:'override',
+          msg:'Mục đích Môi trường: đã ưu tiên kim cương nhân tạo vì tương đương chất lượng, thân thiện môi trường hơn.' });
       }
     }
   }
@@ -326,9 +283,7 @@ function render(){
         <td class="rank">${i+1}</td>
         <td>
           <span class="badge ${d.origin}">${d.origin==='natural'?'Tự nhiên':'LGD'}</span>
-          ${d.flagUnverifiedCert ? '<span class="badge warn-mini" title="Chứng nhận không rõ nguồn gốc — cần kiểm tra thêm">chưa xác minh</span>' : ''}
-          ${d.flagMissingCut ? '<span class="badge warn-mini" title="Chưa có đánh giá giác cắt trong dữ liệu">chưa có cut</span>' : ''}
-          ${d.flagOverpriced ? '<span class="badge warn-mini" title="Giá trên mỗi carat cao hơn mặt bằng chung">giá cao</span>' : ''}
+          ${d.flagOverpriced ? '<span class="badge warn-mini" title="Giá trên mỗi carat cao hơn mặt bằng chung (R2)">giá cao</span>' : ''}
         </td>
         <td>${d.shape||'—'}</td>
         <td>${d.carat.toFixed(2)}</td>

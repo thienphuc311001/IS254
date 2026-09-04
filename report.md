@@ -60,7 +60,7 @@ Loại bỏ viên không đạt điều kiện tối thiểu:
 - Carat < carat tối thiểu → loại.
 - Màu < màu tối thiểu yêu cầu → loại.
 - Độ trong < độ trong tối thiểu → loại.
-- Viên có dữ liệu bất thường (giá = 0, carat > 6ct, giá > 2 tỷ) → loại (R10 sanity check).
+- Viên có dữ liệu bất thường (giá = 0, carat > 6ct, giá > 2 tỷ) → loại (sanity check — lọc dữ liệu, không phải rule override).
 
 ### Bước 2 · Weighted Scoring Model (WSM)
 
@@ -79,32 +79,24 @@ Trong đó mỗi tiêu chí được chuẩn hóa về [0, 1] bằng min-max nor
 
 Trọng số w₁–w₄ do người dùng nhập qua slider (0–5★), chuẩn hóa để tổng = 1. Có 4 preset sẵn: Cưới (4,2,3,1), Tích lũy (2,5,3,1), Cân bằng (3,3,3,2), Môi trường (2,2,2,5).
 
-Với viên thiếu `cut_raw`: gán `cut_score = 0.85` (tương đương Very Good) — không loại khỏi kết quả nhưng gắn nhãn minh bạch trên UI (R11).
+Với viên thiếu `cut_raw`: gán `cut_score = 0.85` (tương đương Very Good) — không loại khỏi kết quả.
 
-### Bước 3 · Rule-based Override (quy tắc chuyên gia R1–R11)
+### Bước 3 · Rule-based Override (4 quy tắc R1–R4)
 
-Bộ quy tắc đã được duyệt và triển khai:
+Sau khi WSM xếp hạng, hệ thống áp dụng 4 quy tắc nghiệp vụ đơn giản để xử lý các trường hợp mà điểm số thuần túy chưa phản ánh đầy đủ mục đích sử dụng. Các quy tắc không thay thế WSM mà chỉ đóng vai trò override có điều kiện:
 
-| Rule          | Điều kiện                                                                   | Hành động                                        | Trạng thái                                         |
-| ------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- | ---------------------------------------------------- |
-| **R1**  | Không có Natural ≥ carat yêu cầu trong ngân sách (cert ≠ "Không rõ") | Ghi đè: đẩy LGD lên Top 1, hiển thị cờ đỏ | ✅ Đồng ý                                         |
-| **R2**  | Ngân sách < 10 triệu AND carat ≥ 2.0                                       | Cảnh báo vàng: "ngân sách không thực tế"    | ✅ Đồng ý (sửa ngưỡng 15tr→10tr)              |
-| **R3**  | Natural > 150tr/ct OR LGD > 30tr/ct                                            | Nhãn "giá cao" trên thẻ                         | ✅ Đồng ý                                         |
-| **R4**  | Chứng nhận "Không rõ"                                                      | Nhãn "chưa xác minh" — KHÔNG loại khỏi Top   | ✅ Đồng ý (phương án cảnh báo, không loại) |
-| **R5**  | Ngân sách ≥ 100 triệu                                                      | Lọc Top chỉ giữ Natural GIA (loại IGI/DJL)      | ✅ Đồng ý                                         |
-| **R6**  | Top 1 có màu ≤ K OR độ trong ≤ SI2                                       | Cảnh báo vàng "chất lượng thấp"              | ✅ Đồng ý (safety net)                            |
-| **R7**  | Preset = Tích lũy                                                            | Ép Natural GIA lên Top 1 nếu có thể            | ✅ Đồng ý                                         |
-| **R8**  | Preset = Cưới AND Top 1 màu ≤ J                                            | Tìm viên sáng hơn (≥ I) đưa lên Top 1       | ✅ Đồng ý (safety net)                            |
-| **R9**  | Preset = Môi trường AND Natural Top 1 chênh LGD ≤ 10%                     | Đẩy LGD lên Top 1                                | ✅ Đồng ý                                         |
-| **R10** | Giá = 0 OR carat > 6 OR giá > 2 tỷ                                          | Loại khỏi tập tính toán (sanity check)         | ✅ Đồng ý                                         |
-| **R11** | Thiếu`cut_raw`                                                              | Gán điểm Very Good + nhãn "chưa có cut"       | ✅ Bổ sung mới                                     |
+| Rule          | Điều kiện                                                                   | Hành động                                        |
+| ------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- |
+| **R1**  | Không có Natural có chứng nhận đáp ứng ngân sách và carat tối thiểu | Ghi đè: ưu tiên LGD và hiển thị cảnh báo |
+| **R2**  | Giá mỗi carat vượt ngưỡng tham chiếu (Natural > 150tr/ct, LGD > 30tr/ct) | Nhãn "giá cao" trên dòng kết quả |
+| **R3**  | Ngân sách ≥ 100 triệu và có Natural GIA phù hợp                      | Lọc Top chỉ giữ nhóm Natural GIA      |
+| **R4**  | Theo mục đích: **Môi trường** — Natural và LGD có điểm WSM gần nhau (chênh ≤ 0.10); **Cưới** — Top 1 có màu quá thấp (≤ J) | Môi trường: ưu tiên LGD + banner; Cưới: ưu tiên viên sáng hơn (≥ I) lên Top 1 |
 
 Các cờ hiển thị trên UI với 3 mức màu:
 
-- 🔴 Đỏ (override): R1, R7 — hệ thống chủ động sắp xếp lại Top.
-- 🟡 Vàng (warn): R2, R6 — cảnh báo rủi ro người dùng nên biết.
-- 🟢 Xanh ngọc (info): R5, R8, R9 — ghi chú điều chỉnh nhẹ.
-- Nhãn nhỏ trên từng dòng kết quả: "chưa xác minh" (R4), "chưa có cut" (R11), "giá cao" (R3).
+- 🔴 Đỏ (override): R1, R4 (Môi trường) — hệ thống chủ động sắp xếp lại Top.
+- 🟢 Xanh ngọc (info): R3, R4 (Cưới) — ghi chú điều chỉnh nhẹ.
+- Nhãn nhỏ trên từng dòng kết quả: "giá cao" (R2).
 
 ## 5. Những gì đã thực hiện theo trình tự
 
@@ -136,6 +128,7 @@ Các cờ hiển thị trên UI với 3 mức màu:
 - Chốt phương án R4: cảnh báo thay vì loại bỏ.
 - Triển khai rule engine đầy đủ trong `app.js`, tích hợp hiển thị flags đa màu trên banner + badge nhỏ trên từng dòng bảng.
 - Kiểm thử với data thật: tất cả PASS.
+- Hợp nhất final: rút gọn còn đúng 4 quy tắc chính R1–R4 (sanity check đưa về lọc dữ liệu ở Bước 1, bỏ các cảnh báo/nhãn phụ không thuộc 4 quy tắc).
 
 ### Giai đoạn 5 · Kiểm thử
 
@@ -147,13 +140,11 @@ Sử dụng headless DOM stub (Node.js VM context) thay cho browser thật vì s
 | Hard Filter mặc định | filtered = 200 viên (budget 60tr, ≥0.5ct, D-F, FL-VS2)   | PASS      |
 | WSM chuẩn hóa         | Tất cả sub-score ∈ [0,1], sắp xếp giảm dần          | PASS      |
 | R1 Override             | Budget 25tr & ≥1ct → override=true, top1 là LGD         | PASS      |
-| R2 Unrealistic budget   | Budget 9tr & ≥2ct → flag R2 kích hoạt                  | PASS      |
-| R3 Price-per-carat      | Xác nhận tồn tại Natural 469tr/ct, LGD 39tr/ct         | PASS      |
-| R4 Unverified cert      | LGD "Không rõ" vẫn ở Top + có nhãn                   | PASS      |
-| R5 Premium GIA          | Budget ≥100tr → Top chỉ còn Natural GIA                | PASS      |
-| R7 Invest preset        | Chạy không lỗi, ưu tiên Natural GIA                   | PASS      |
-| R9 Eco preset           | Chạy không lỗi                                          | PASS      |
-| Sanity R10              | Không loại nhầm viên hợp lệ (filtered vẫn 200)      | PASS      |
+| R2 Price-per-carat      | Viên vượt ngưỡng 150tr/ct (Natural) / 30tr/ct (LGD) → nhãn "giá cao" | PASS |
+| R3 Premium GIA          | Budget ≥100tr → Top chỉ còn Natural GIA                | PASS      |
+| R4 Môi trường           | Eco bật + LGD dẫn đầu + chênh WSM ≤ 0.10 → override LGD | PASS      |
+| R4 Cưới                 | Top 1 màu ≤ J → đưa viên sáng hơn (≥ I) lên Top 1      | PASS      |
+| Sanity filter           | Không loại nhầm viên hợp lệ (filtered vẫn 200)      | PASS      |
 | Sau tách file          | CSS/script tách xong, runtime hoạt động bình thường | PASS      |
 
 ## 6. Hướng chạy app
