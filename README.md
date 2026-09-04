@@ -56,29 +56,31 @@ Chỉ cần thay thế `data_ready.xlsx` bằng file mới (giữ nguyên cấu 
 
 ## 5 use cases demo
 
+> Mỗi expected value bên dưới đã được xác minh bằng chính engine `compute()` 3 bước chạy trên `data_ready.xlsx` (763 viên · 645 Tự nhiên · 118 LGD) và unit test trong `test/engine.test.js`.
+
 ### UC1 · Ngân sách hạn chế, cần ≥ 1 ct — R1
-- Input: Budget `25.000.000 đ`, Carat `≥1.00`, màu `D–J`, độ trong `FL–SI2`, preset `Nhẫn cưới`.
-- Expected: Top 5 toàn LGD; cờ `override` R1 bật.
-- Talking point: WSM chọn size/giá trị tốt nhất, còn R1 giải thích vì sao Natural không khả thi ở ràng buộc này.
+- Input: preset `Nhẫn cưới`; Budget `25.000.000 đ`; Carat `≥ 1.00`; màu `D–J`; độ trong `FL–SI2`.
+- Expected: cờ `[R1]` (level override): *"…không có kim cương Tự nhiên nào thỏa mãn — hệ thống ghi đè gợi ý sang LGD"*; Top 5 toàn LGD, dẫn đầu `1.73ct E/VS1 · 6.500.000 đ`.
+- Talking point: R1 quét toàn bộ dữ liệu (mọi viên Tự nhiên có chứng nhận), không chỉ Top 8 — trong 645 viên Tự nhiên không có viên ≥ 1 ct dưới 30 triệu nên WSM bị ghi đè hợp lý.
 
-### UC2 · Nhẫn cưới sáng và đủ lớn — R4 (Cưới) + quality-first preset
-- Input: Budget `80.000.000 đ`, Carat `≥0.70`, màu `D–F`, độ trong `FL–VS2`, preset `Nhẫn cưới` (`Size 3 / Finance 2 / Quality 4 / Environment 1`).
-- Expected: nếu ứng viên đầu có màu ≤ J, hệ thống ưu tiên viên ≥ I và thêm flag `R4`.
-- Talking point: nhẫn cưới cần hiệu ứng sáng, không chỉ tối đa carat.
+### UC2 · Nhẫn cưới cần màu sáng — R4 (Cưới) + R3
+- Input: preset `Nhẫn cưới` (Size 3 / Finance 2 / Quality 4 / Env 1); Budget `120.000.000 đ`; Carat `≥ 1.20`; màu `D–J`; độ trong `FL–VS2`.
+- Expected: WSM tạm cho `1.23ct J/VVS2 GIA · 82.800.000 đ` đứng Top 1, nhưng cờ `[R4]` đổi chỗ cho viên màu sáng hơn: Top 1 = `1.22ct H/VS2 GIA · 108.000.000 đ`; đồng thời cờ `[R3]` bật (budget ≥ 100 triệu) và Top 5 chỉ còn GIA.
+- Talking point: nhẫn cưới cần hiệu ứng sáng, không chỉ tối đa carat; rule giải thích rõ vì sao Top 1 bị thay.
 
-### UC3 · Tích trữ/đầu tư — R3
-- Input: Budget `≥150.000.000 đ`, Carat `≥0.50`, preset `Tích trữ`.
-- Expected: khi có Natural GIA trong shortlist, R3 chỉ giữ GIA.
-- Talking point: ưu tiên giữ giá ~90%, tính thanh khoản và chuẩn phân khúc cao cấp.
+### UC3 · Tích trữ / đầu tư — R3
+- Input: preset `Tích trữ` (Size 2 / Finance 5 / Quality 3 / Env 1); Budget `150.000.000 đ`; Carat `≥ 0.50`; màu `D–F`; độ trong `FL–VS2`.
+- Expected: cờ `[R3]` (info): *"Phân khúc trên 100 triệu — hệ thống ưu tiên chứng nhận GIA"*; Top 5 = 5/5 Tự nhiên GIA, dẫn đầu `0.50ct D/VS1 GIA · 29.900.000 đ` (score ≈ 0.74).
+- Talking point: ngưỡng R3 thật là ≥ 100 triệu (`RULES.R3_PREMIUM_GIA`); khi còn Natural GIA trong Top 8, mọi viên không GIA — kể cả LGD — bị loại khỏi Top.
 
-### UC4 · Ưu tiên môi trường — Eco blend + R4 (Môi trường)
-- Input: Budget `120.000.000 đ`, preset `Quà tặng / Cá nhân`; tăng `Environment` lên 3 rồi bật `Ưu tiên thân thiện môi trường`.
-- Expected: trọng số environment tăng nhưng thứ hạng chỉ đổi theo eco-blend; nếu LGD dẫn đầu và Natural gần tương đương (max criterion gap ≤ `0.10`), hiện banner R4.
-- Talking point: R4 giải thích lựa chọn thân thiện môi trường thay vì ghi đè kết quả sau rule.
+### UC4 · Phân khúc siêu cao cấp — R2 (nhãn "giá cao")
+- Input: preset `Nhẫn cưới`; Budget `800.000.000 đ`; Carat `≥ 2.00`; màu `D–F`; độ trong `FL–VS2`.
+- Expected: các dòng vượt giá/carat mang nhãn "giá cao" (tooltip R2) — ví dụ `2.01ct D/VS1 GIA · 678.000.000 đ` (≈ 337 tr/ct > ngưỡng 150 tr/ct Tự nhiên); Top 5 chỉ có 2 viên, cả 2 đều dán nhãn; cờ `[R3]` bật.
+- Talking point: R2 không loại viên mà gắn nhãn cảnh báo premium; LGD có ngưỡng riêng thấp hơn (30 tr/ct).
 
-### UC5 · Phân khúc cao cấp — R3 bảo vệ chuẩn GIA
-- Input: Budget `300.000.000 đ`, Carat `≥0.70`, preset `Nhẫn cưới`, giữ bộ lọc chất lượng mặc định.
-- Expected: danh sách ngắn chỉ còn Natural GIA khi có ít nhất một Natural GIA trong Top 8; các mục không GIA bị loại và flag `R3` xuất hiện.
-- Talking point: ngân sách premium yêu cầu chuẩn kiểm định mạnh hơn, kể cả khi LGD cho carat lớn hơn.
+### UC5 · Ưu tiên môi trường — Eco blend (điều kiện R4 Môi trường)
+- Input: preset `Quà tặng / Cá nhân`; Budget `120.000.000 đ`; màu `D–F`; độ trong `FL–VS2`. Chạy 2 lần: (a) mặc định, (b) bật `Ưu tiên thân thiện môi trường`.
+- Expected: (a) Top 5 toàn Tự nhiên GIA + cờ `[R3]`; (b) trọng số môi trường tăng 0.182 → 0.291 (blend 60/40 với vector eco `[0.18, 0.18, 0.18, 0.45]`), Top 5 đảo sang toàn LGD (dẫn đầu `1.73ct E/VS1 · 6.500.000 đ`) và `[R3]` tắt vì Top 8 không còn Natural GIA.
+- Talking point trung thực: banner ghi đè `[R4]` chỉ bật khi LGD dẫn đầu và Natural gần nhất chênh ≤ 0.10 trên cả 3 tiêu chí size/finance/quality; trên `data_ready.xlsx` khoảng cách tối thiểu ≈ 1.0 nên banner không kích hoạt với dữ liệu thật — điều kiện này được xác minh bằng unit test dữ liệu giả lập (`test/engine.test.js`).
 
-> Demo tip: đặt từng bộ input theo thứ tự trên và chụp lại Top 5 + flags; các expected value được xác minh bằng engine hiện tại trên `data_ready.xlsx`.
+> Demo tip: chạy lần lượt UC1 → UC5 theo thứ tự trên, chụp lại Top 5 + các cờ `[R…]` sau mỗi bước; UC5 nhớ chụp cả 2 trạng thái của nút "Ưu tiên thân thiện môi trường".
