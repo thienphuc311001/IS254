@@ -255,14 +255,14 @@ function compute(){
 function render(){
   const {budget, minCarat, filtered, top5, override, ecoPreferred, ecoOverride, flags} = compute();
 
-  $budget.parentElement.querySelector('.val').textContent = fmtVND(budget)+' đ';
+  el('budgetVal').textContent = fmtVND(budget)+' đ';
   $budgetInput.value = budget;
-  $minCarat.parentElement.querySelector('.val').textContent = (+$minCarat.value).toFixed(2)+' ct';
+  el('caratVal').textContent = (+$minCarat.value).toFixed(2)+' ct';
   $minCaratInput.value = +$minCarat.value;
-  $wSize.parentElement.querySelector('.val').textContent = '★'.repeat(+$wSize.value)+'☆'.repeat(5-+$wSize.value);
-  $wFin.parentElement.querySelector('.val').textContent = '★'.repeat(+$wFin.value)+'☆'.repeat(5-+$wFin.value);
-  $wQual.parentElement.querySelector('.val').textContent = '★'.repeat(+$wQual.value)+'☆'.repeat(5-+$wQual.value);
-  $wEnv.parentElement.querySelector('.val').textContent = '★'.repeat(+$wEnv.value)+'☆'.repeat(5-+$wEnv.value);
+  el('wSizeVal').textContent = '★'.repeat(+$wSize.value)+'☆'.repeat(5-+$wSize.value);
+  el('wFinVal').textContent = '★'.repeat(+$wFin.value)+'☆'.repeat(5-+$wFin.value);
+  el('wQualVal').textContent = '★'.repeat(+$wQual.value)+'☆'.repeat(5-+$wQual.value);
+  el('wEnvVal').textContent = '★'.repeat(+$wEnv.value)+'☆'.repeat(5-+$wEnv.value);
 
   // Bước 3: hiển thị tất cả cờ quy tắc chuyên gia đã kích hoạt
   const flagEl = el('ruleFlag');
@@ -432,33 +432,39 @@ function updateFooterSources(){
   }
 }
 
+// Áp dụng khoảng giá trị + option + footer suy từ DATA/META lên các control
+function applyDataToControls(){
+  // ==== Khoảng slider ngân sách: suy từ min/max giá trong dữ liệu ====
+  const bMin = Math.floor(META.minPrice / 1e6) * 1e6;
+  const bMax = Math.ceil(META.maxPrice);
+  $budget.min = bMin; $budget.max = bMax;
+  $budgetInput.min = bMin; $budgetInput.max = bMax;
+  $budget.value = Math.min(Math.max(+$budget.value, bMin), bMax);
+  $budgetInput.value = $budget.value;
+  el('budgetVal').textContent = fmtVND(+$budget.value) + ' đ';
+
+  // ==== Khoảng slider carat: suy từ min/max carat trong dữ liệu ====
+  const cMin = Math.floor((META.minCarat || 0) * 100) / 100;
+  const cMax = Math.ceil((META.maxCarat || 1) * 100) / 100;
+  $minCarat.min = cMin; $minCarat.max = cMax;
+  $minCaratInput.min = cMin; $minCaratInput.max = cMax;
+  $minCarat.step = '0.01';
+  $minCarat.value = Math.min(Math.max(+$minCarat.value, cMin), cMax);
+  $minCaratInput.value = $minCarat.value;
+  el('caratVal').textContent = (+$minCarat.value).toFixed(2) + ' ct';
+
+  populateGradeSelects();
+  updateFooterSources();
+}
+
 if (typeof DATA === 'undefined') {
   loadDiamondData('data_ready.xlsx').then(()=>{
-    // ==== Khoảng slider ngân sách: suy từ min/max giá trong dữ liệu ====
-    const bMin = Math.floor(META.minPrice / 1e6) * 1e6;
-    const bMax = Math.ceil(META.maxPrice);
-    $budget.min = bMin; $budget.max = bMax;
-    $budgetInput.min = bMin; $budgetInput.max = bMax;
-    $budget.value = Math.min(Math.max(+$budget.value, bMin), bMax);
-    $budgetInput.value = $budget.value;
-    $budget.parentElement.querySelector('.val').textContent = fmtVND(+$budget.value) + ' đ';
-
-    // ==== Khoảng slider carat: suy từ min/max carat trong dữ liệu ====
-    const cMin = Math.floor((META.minCarat || 0) * 100) / 100;
-    const cMax = Math.ceil((META.maxCarat || 1) * 100) / 100;
-    $minCarat.min = cMin; $minCarat.max = cMax;
-    $minCaratInput.min = cMin; $minCaratInput.max = cMax;
-    $minCarat.step = '0.01';
-    $minCarat.value = Math.min(Math.max(+$minCarat.value, cMin), cMax);
-    $minCaratInput.value = $minCarat.value;
-    $minCarat.parentElement.querySelector('.val').textContent = (+$minCarat.value).toFixed(2) + ' ct';
-
-    populateGradeSelects();
-    updateFooterSources();
+    applyDataToControls();
     updateMasthead();
     render();
   });
 } else {
+  applyDataToControls();
   updateMasthead();
   render();
 }
