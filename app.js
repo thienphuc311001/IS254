@@ -17,6 +17,13 @@ function normalize(values){
 const fmtVND = n => new Intl.NumberFormat('vi-VN').format(Math.round(n));
 const fmtTrieu = n => (n/1e6 >= 1000) ? (n/1e9).toFixed(2)+' tỷ' : (n/1e6).toFixed(1)+' tr';
 
+// Tỷ lệ giữ giá trung bình (%) theo nguồn gốc — suy từ cột resale_rate trong data
+function resalePct(origin){
+  if (typeof DATA === 'undefined' || !DATA) return 0;
+  const list = DATA.filter(d => d.origin === origin && d.resale != null);
+  return list.length ? Math.round(list.reduce((s,d) => s + d.resale, 0) / list.length * 100) : 0;
+}
+
 const el = id => document.getElementById(id);
 const $budget=el('budget'), $budgetInput=el('budgetInput'), $minCarat=el('minCarat'), $minCaratInput=el('minCaratInput'), $wSize=el('wSize'), $wFin=el('wFin'), $wQual=el('wQual'), $wEnv=el('wEnv'),
       $minColor=el('minColor'), $minClarity=el('minClarity'), $ecoPreferred=el('ecoPreferred');
@@ -186,7 +193,7 @@ function compute(){
         finalTop.pop();
       }
       flags.push({ id:'R7', level:'override',
-        msg:'Mục đích Tích lũy / Đầu tư: hệ thống ưu tiên Kim cương Tự nhiên GIA vì khả năng giữ giá 90% so với ~60% của LGD.' });
+        msg:`Mục đích Tích lũy / Đầu tư: hệ thống ưu tiên Kim cương Tự nhiên GIA vì khả năng giữ giá ${resalePct('natural')}% so với ~${resalePct('lgd')}% của LGD.` });
     }
   }
 
@@ -300,7 +307,7 @@ function render(){
     if(leanLgd){
       verdictEl.textContent = 'Kim cương Nhân tạo (LGD)';
       verdictEl.className = 'banner-verdict lgd';
-      verdictText.textContent = 'Với mức ưu tiên và ngân sách hiện tại, LGD mang lại carat lớn hơn đáng kể trên cùng chi phí. Đánh đổi: khả năng giữ giá thấp hơn (~60% so với 90%).';
+      verdictText.textContent = `Với mức ưu tiên và ngân sách hiện tại, LGD mang lại carat lớn hơn đáng kể trên cùng chi phí. Đánh đổi: khả năng giữ giá thấp hơn (~${resalePct('lgd')}% so với ${resalePct('natural')}%).`;
     } else {
       verdictEl.textContent = 'Kim cương Tự nhiên';
       verdictEl.className = 'banner-verdict natural';
@@ -345,27 +352,40 @@ function drawLoupe(filtered, top5, budget, minCarat){
   const W=1160,H=380, padL=54,padR=20,padT=16,padB=34;
   const plotW = W-padL-padR, plotH = H-padT-padB;
 
-  const maxCarat = Math.max(3, Math.ceil(Math.max(...DATA.map(d=>d.carat))));
-  const minPriceLog = Math.log10(2000000), maxPriceLog = Math.log10(1200000000);
+  // Trục suy từ khoảng giá trị thực tế của dữ liệu (không hardcode)
+  const prices = DATA.map(d=>d.price).filter(p=>p>0);
+  const minPrice = prices.length ? Math.min(...prices) : 0;
+  const maxPrice = prices.length ? Math.max(...prices) : 1;
+  const maxCarat = Math.max(1, Math.ceil(Math.max(...DATA.map(d=>d.carat || 0))));
+  const minPriceLog = Math.log10(minPrice || 1);
+  const maxPriceLog = maxPrice > minPrice ? Math.log10(maxPrice) : minPriceLog + 1;
 
   const x = c => padL + (c/maxCarat)*plotW;
-  const y = p => padT + plotH - ((Math.log10(Math.max(p,2000000))-minPriceLog)/(maxPriceLog-minPriceLog))*plotH;
+  const y = p => padT + plotH - ((Math.log10(Math.max(p,minPrice))-minPriceLog)/(maxPriceLog-minPriceLog))*plotH;
 
   const filteredIds = new Set(filtered.map(d=>d.link+d.carat+d.price+d.store));
   const top5Ids = new Set(top5.map(d=>d.link+d.carat+d.price+d.store));
 
   let gridLines = '';
-  [0,0.5,1,1.5,2,2.5,3].filter(c=>c<=maxCarat).forEach(c=>{
-    gridLines += `<line x1="${x(c)}" y1="${padT}" x2="${x(c)}" y2="${padT+plotH}" stroke="#1D2129" stroke-width="1"/>`;
-    gridLines += `<text x="${x(c)}" y="${H-12}" fill="#5B626D" font-size="10" font-family="IBM Plex Mono" text-anchor="middle">${c}ct</text>`;
-  });
-  [3e6,1e7,3e7,1e8,3e8,1e9].forEach(p=>{
+  // Gridline trục carat: sinh theo bước đẹp trong khoảng carat của dữ liệu
+  const caratStep = maxCarat <= 2 ? 0.25 : maxCarat <= 5 ? 0.5 : 1;
+  for (let c = 0; c <= maxCarat + 1e-9; c += caratStep) {
+    const cc = Math.round(c*100)/100;
+    gridLines += `<line x1="${x(cc)}" y1="${padT}" x2="${x(cc)}" y2="${padT+plotH}" stroke="#1D2129" stroke-width="1"/>`;
+    gridLines += `<text x="${x(cc)}" y="${H-12}" fill="#5B626D" font-size="10" font-family="IBM Plex Mono" text-anchor="middle">${cc}ct</text>`;
+  }
+  // Gridline trục giá: các mốc "đẹp" (1-2-3-5 × 10ⁿ) nằm trong khoảng giá dữ liệu
+  const priceTicks = [];
+  for (let exp = Math.floor(minPriceLog); exp <= Math.ceil(maxPriceLog); exp++) {
+    [1,2,3,5].forEach(m => { const t = m * Math.pow(10, exp); if (t >= minPrice && t <= maxPrice) priceTicks.push(t); });
+  }
+  priceTicks.forEach(p=>{
     const yy = y(p);
     gridLines += `<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="#1D2129" stroke-width="1"/>`;
     gridLines += `<text x="${padL-8}" y="${yy+3}" fill="#5B626D" font-size="10" font-family="IBM Plex Mono" text-anchor="end">${fmtTrieu(p)}</text>`;
   });
 
-  const budgetY = y(Math.min(budget,1200000000));
+  const budgetY = y(Math.min(budget, maxPrice));
   const budgetLine = `<line x1="${padL}" y1="${budgetY}" x2="${W-padR}" y2="${budgetY}" stroke="#E8664A" stroke-width="1.3" stroke-dasharray="4 4"/>`;
   const caratX = x(Math.min(minCarat,maxCarat));
   const caratLine = minCarat>0 ? `<line x1="${caratX}" y1="${padT}" x2="${caratX}" y2="${padT+plotH}" stroke="#E8664A" stroke-width="1" stroke-dasharray="2 3" opacity="0.5"/>` : '';
@@ -386,32 +406,55 @@ function drawLoupe(filtered, top5, budget, minCarat){
   svg.innerHTML = gridLines + budgetLine + caratLine + points;
 }
 
-// Thống kê masthead từ META (sinh bởi build_data.py)
-if (typeof META !== 'undefined') {
-  el('statTotal').textContent = META.total;
-  el('statStores').textContent = META.stores;
-  el('statNatural').textContent = META.natural;
-  el('statLgd').textContent = META.lgd;
+// Sinh option cho dropdown Màu / Độ trong từ các grade thực có trong dữ liệu
+function populateGradeSelect(sel, grades, prefix, everySuffix, defaults){
+  if (!grades || !grades.length) return;
+  const prev = sel.value;
+  const lowest = grades[grades.length - 1].grade;
+  sel.innerHTML = grades.map((g, i) => {
+    const label = (i === grades.length - 1) ? `${prefix}${lowest}${everySuffix}` : `${prefix}${g.grade}`;
+    return `<option value="${g.grade}">${label}</option>`;
+  }).join('');
+  const chosen = [prev, ...defaults].find(v => grades.some(g => g.grade === v));
+  sel.value = chosen || lowest;
+}
+
+function populateGradeSelects(){
+  populateGradeSelect($minColor, META.colorGrades, 'D–', ' (mọi màu)', ['F']);
+  populateGradeSelect($minClarity, META.clarityGrades, 'FL–', ' (mọi loại)', ['VS2']);
+}
+
+// Danh sách nguồn dữ liệu ở footer suy từ cột store trong data
+function updateFooterSources(){
+  const footerEl = el('dataSource');
+  if (footerEl && META.storeList && META.storeList.length) {
+    footerEl.textContent = 'Nguồn dữ liệu: ' + META.storeList.join(' · ');
+  }
 }
 
 if (typeof DATA === 'undefined') {
   loadDiamondData('data_ready.xlsx').then(()=>{
-    const maxPrice = Math.max(...DATA.map(item => item.price || 0));
-    const maxCarat = Math.max(...DATA.map(item => item.carat || 0));
-
-    $budget.max = Math.ceil(maxPrice);
-    $budgetInput.max = $budget.max;
-    $budget.value = Math.min(+$budget.value, +$budget.max);
+    // ==== Khoảng slider ngân sách: suy từ min/max giá trong dữ liệu ====
+    const bMin = Math.floor(META.minPrice / 1e6) * 1e6;
+    const bMax = Math.ceil(META.maxPrice);
+    $budget.min = bMin; $budget.max = bMax;
+    $budgetInput.min = bMin; $budgetInput.max = bMax;
+    $budget.value = Math.min(Math.max(+$budget.value, bMin), bMax);
     $budgetInput.value = $budget.value;
     $budget.parentElement.querySelector('.val').textContent = fmtVND(+$budget.value) + ' đ';
 
-    $minCarat.max = maxCarat;
-    $minCaratInput.max = maxCarat;
+    // ==== Khoảng slider carat: suy từ min/max carat trong dữ liệu ====
+    const cMin = Math.floor((META.minCarat || 0) * 100) / 100;
+    const cMax = Math.ceil((META.maxCarat || 1) * 100) / 100;
+    $minCarat.min = cMin; $minCarat.max = cMax;
+    $minCaratInput.min = cMin; $minCaratInput.max = cMax;
     $minCarat.step = '0.01';
-    $minCarat.value = Math.min(+$minCarat.value, +$minCarat.max);
+    $minCarat.value = Math.min(Math.max(+$minCarat.value, cMin), cMax);
     $minCaratInput.value = $minCarat.value;
     $minCarat.parentElement.querySelector('.val').textContent = (+$minCarat.value).toFixed(2) + ' ct';
 
+    populateGradeSelects();
+    updateFooterSources();
     updateMasthead();
     render();
   });

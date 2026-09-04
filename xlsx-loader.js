@@ -44,7 +44,7 @@ async function loadDiamondData(xlsxPath) {
   const colIndex = letters => letters.split('').reduce((a,c)=>a*26 + (c.charCodeAt(0)-64), 0) - 1;
 
   const rowsXml = [...doc.getElementsByTagName('row')];
-  if (rowsXml.length < 2) { DATA = []; META = {total:0, natural:0, lgd:0, stores:0}; return; }
+  if (rowsXml.length < 2) { DATA = []; META = buildMeta([]); return; }
 
   // Header
   const headerCells = [...rowsXml[0].getElementsByTagName('c')];
@@ -104,11 +104,40 @@ async function loadDiamondData(xlsxPath) {
   }
 
   DATA = records;
-  META = {
+  META = buildMeta(records);
+}
+
+// Mọi số liệu thống kê trên app đều suy ra từ records (data_ready.xlsx), không hardcode.
+function buildMeta(records) {
+  const prices = records.map(r => r.price).filter(p => p > 0);
+  const carats = records.map(r => r.carat).filter(c => c > 0);
+  const avgResaleOf = origin => {
+    const list = records.filter(r => r.origin === origin && r.resale != null);
+    return list.length ? list.reduce((s, r) => s + r.resale, 0) / list.length : 0;
+  };
+  // Danh sách grade phân biệt trong dữ liệu, sắp xếp từ tốt nhất → kém nhất
+  const distinctGrades = (gradeKey, codeKey) => {
+    const seen = new Map();
+    records.forEach(r => {
+      if (r[gradeKey] && r[codeKey] != null) seen.set(r[gradeKey], r[codeKey]);
+    });
+    return [...seen.entries()]
+      .map(([grade, code]) => ({ grade, code }))
+      .sort((a, b) => b.code - a.code);
+  };
+  return {
     total: records.length,
     natural: records.filter(r => r.origin === 'natural').length,
     lgd: records.filter(r => r.origin === 'lgd').length,
     stores: new Set(records.map(r => r.store)).size,
+    storeList: [...new Set(records.map(r => r.store).filter(Boolean))],
+    minPrice: prices.length ? Math.min(...prices) : 0,
+    maxPrice: prices.length ? Math.max(...prices) : 0,
+    minCarat: carats.length ? Math.min(...carats) : 0,
+    maxCarat: carats.length ? Math.max(...carats) : 0,
+    avgResale: { natural: avgResaleOf('natural'), lgd: avgResaleOf('lgd') },
+    colorGrades: distinctGrades('color', 'colorCode'),
+    clarityGrades: distinctGrades('clarity', 'clarityCode'),
   };
 }
 
