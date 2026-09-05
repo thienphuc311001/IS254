@@ -1,170 +1,201 @@
-# Báo cáo dự án — Kính Lúp Kim Cương
+# Report 2 — DSS Engine: Quality, Finance, Preset & Purpose
 
-Môn học: Hệ hỗ trợ ra quyết định (Decision Support System)
+## Trạng thái
 
-## 1. Tổng quan
+Đã triển khai chính theo kế hoạch đã chốt. Sau kỳ hợp nhất final, hệ thống dùng đúng **4 quy tắc override R1–R4** (xem `report.md` — Bước 3); sanity check được đưa về lọc dữ liệu ở Bước 1. Bộ test hiện chạy **11/11 pass**.
 
-Xây dựng ứng dụng DSS giúp người dùng chọn mua kim cương phù hợp với ngân sách và tiêu chí cá nhân.
+## Thuật toán — 3 bước chính
 
-## 2. Dữ liệu
+Engine chấm điểm trong `compute()` (`app.js`) chạy theo ba bước, trong đó **WSM vẫn là hạng chính** và các rule ở Bước 3 chỉ override có điều kiện:
 
-| File                | Mô tả                                                    |
-| ------------------- | ---------------------------------------------------------- |
-| `data_clean.xlsx` | Dữ liệu thô gốc: 785 dòng × 14 cột                  |
-| `data_ready.xlsx` | Dữ liệu đã làm sạch + mã hóa: 763 dòng × 17 cột |
+### Bước 1 · Hard Filter — lọc cứng
 
-Quy trình làm sạch từ `data_clean.xlsx` → `data_ready.xlsx`:
+Loại ngay các viên không đạt điều kiện đầu vào trước khi chấm điểm:
 
-1. Xóa trùng lặp (bỏ STT 93): 785 → 784 dòng.
-2. Loại fancy color và dòng thiếu Color: 784 → 763 dòng.
+- `price > budget` hoặc `carat < minCarat` → loại.
+- `colorCode < minColorCode` hoặc `clarityCode < minClarityCode` → loại.
+- Sanity check (lọc dữ liệu bất thường, không phải rule override): `price === 0`, `carat > 6`, hoặc `price > 2 tỷ` (`RULES.SANITY_FILTER`) → loại.
 
-Kết quả cuối: **645 viên Tự nhiên + 118 viên LGD**, từ 5 cửa hàng (`tierra.vn`, `jemmia.vn`, `mayadiamond.vn`, `thaolinhjewelry.vn`, `trangsuc.doji.vn`).
+### Bước 2 · Weighted Scoring Model (WSM) — chấm điểm và xếp hạng
 
-Các cột mã hóa trong `data_ready.xlsx`:
+- Chuẩn hóa min–max từng tiêu chí về `[0,1]` trên tập ứng viên sau lọc (dùng toàn bộ dữ liệu nếu tập lọc rỗng):
+  - `Size` = `carat / (price/1e6)` (carat trên mỗi triệu VND).
+  - `Finance` = `resale_rate` (tỷ lệ giữ giá, độc lập giá bán).
+  - `Quality` = `(norm(cut) + norm(cert)) / 2`.
+  - `Environment` = `0.85` (LGD) / `0.15` (Natural).
+- Trọng số lấy từ preset mục đích (Bước 1 UI), trộn eco-blend `0.6/0.4` nếu bật "Ưu tiên thân thiện môi trường".
+- Điểm tổng: `Score = w1·Size + w2·Finance + w3·Quality + w4·Environment`, sắp xếp giảm dần và lấy **Top 8** (nhiều hơn 5 để các rule ở Bước 3 còn dư địa).
 
-| Cột             | Thang mã                                 |
-| ---------------- | ----------------------------------------- |
-| `color_code`   | N=0 … D=10 (càng trắng càng cao)      |
-| `clarity_code` | SI2=1 … FL=8 (càng sạch càng cao)     |
-| `cut_code`     | Very Good/thiếu = 2, Excellent = 3       |
-| `cert_code`    | Không rõ = 0, DJL = 1, IGI = 2, GIA = 3 |
-| `is_natural`   | 0 = LGD, 1 = Natural                      |
+### Bước 3 · Rule-Based Override — 4 quy tắc R1–R4
 
-Đặc điểm dữ liệu đáng chú ý:
+Các quy tắc chuyên gia chỉ can thiệp có điều kiện lên Top 8; mỗi rule khi kích hoạt sẽ gắn cờ hiển thị trên UI:
 
-- Toàn bộ 118 viên LGD có chứng nhận "Không rõ" (không có GIA/IGI/DJL).
-- 126/763 viên thiếu giá trị `cut_raw`.
-- Giá dao động từ 2.808.000 đ (LGD Round 0.36ct) đến 1.126.391.200 đ (Natural Round 2.4ct GIA).
-- Tỷ lệ giữ giá: Natural = 90%, LGD = 60%.
+| Rule | Tên | Điều kiện kích hoạt | Hành động |
+| ---- | --- | ------------------- | --------- |
+| **R1** | Không có Natural phù hợp | Trong ngân sách + carat đã chọn, **không tồn tại** viên Natural nào có chứng nhận (`certCode > 0`) | Ghi đè thứ hạng: đẩy toàn bộ LGD lên trước Natural trong Top kết quả (cờ `override`) |
+| **R2** | Nhãn "giá cao" | Giá trên mỗi carat vượt ngưỡng tham chiếu: Natural > **150 triệu/ct**, LGD > **30 triệu/ct** (`R2_HIGH_PRICE_PER_CT`) | Gắn nhãn `giá cao` trên dòng kết quả — chỉ cảnh báo, không đổi thứ hạng |
+| **R3** | Ưu tiên GIA | Ngân sách ≥ **100 triệu** (`R3_PREMIUM_GIA.budget`) **và** còn Natural GIA (`certCode === 3`) trong Top | Lọc Top chỉ giữ lại các viên chứng nhận GIA (cờ `info`) |
+| **R4** | Điều chỉnh theo mục đích | (a) **Cưới**: Top 1 có màu ≤ J và còn viên màu sáng hơn (≥ I) trong Top → hoán đổi đưa viên sáng lên Top 1. (b) **Môi trường**: bật eco, Top 1 là LGD, và Natural tốt nhất trong phần còn lại của Top có khoảng cách Chebyshev `max(ΔSize, ΔFinance, ΔQuality) ≤ 0.10` (`R4_MAX_CRITERION_GAP`) | (a) Swap Top 1. (b) Chỉ **giải thích**: bật `ecoOverride` + banner eco, không hoán đổi hay sort lại |
 
-## 3. Kiến trúc app
+Sau Bước 3, engine cắt **Top 5** cuối cùng để hiển thị cùng toàn bộ cờ rule đã kích hoạt.
 
-App được tách thành các file riêng biệt, không nhúng CSS hoặc script trong HTML:
+## Đã làm
 
-| File                | Vai trò                                                                                                   |
-| ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `index.html`      | Markup thuần (176 dòng), chỉ chứa`<link>` và `<script src>`                                       |
-| `style.css`       | Toàn bộ giao diện (~230 dòng)                                                                          |
-| `app.js`          | Logic UI, WSM scoring, rule engine (~300 dòng)                                                            |
-| `xlsx-loader.js`  | Đọc`.xlsx` lúc chạy: giải nén bằng JSZip → parse XML → gán biến `DATA`, `META` toàn cục |
-| `jszip.min.js`    | Thư viện giải nén zip (JSZip v3.10.1)                                                                  |
-| `data_ready.xlsx` | Nguồn dữ liệu duy nhất — thay file này là app dùng dữ liệu mới ngay                             |
+### 1. Tách cấu hình dùng chung
 
-## 4. Thuật toán compute() — mô hình 3 bước
+- Tạo mới `diamond-config.js`.
+- Chuyển toàn bộ cấu hình dùng chung ra khỏi `app.js`:
+  - `RULES`, gồm ngưỡng `R2_HIGH_PRICE_PER_CT`, `R3_PREMIUM_GIA`, `R4_MAX_CRITERION_GAP`, `SANITY_FILTER` (đánh số final sau khi hợp nhất còn 4 rule).
+  - Bảng mã `COLOR_CODE`, `CLARITY_CODE`.
+  - Bảng điểm `CUT_SCORE`, `CERT_SCORE`.
+  - Enum mục đích `PURPOSE` với ba giá trị: `WEDDING`, `INVESTMENT`, `GIFT_PERSONAL`.
+  - Preset trọng số tương ứng ba mục đích trên.
+  - Cấu hình eco-blend: tỷ lệ `0.6 / 0.4` và vector eco `[0.18, 0.18, 0.18, 0.45]`.
+- Chuyển hàm dùng chung sang file này:
+  - `normalizeWeights(weights)`.
+  - `applyEcoBlend(baseWeights, ecoPreferred)`.
+- Cập nhật `index.html` để nạp `diamond-config.js` trước `app.js`.
 
-### Bước 1 · Hard Filter (lọc cứng)
+### 2. Công thức Quality
 
-Loại bỏ viên không đạt điều kiện tối thiểu:
+- `cut_code` và `cert_score` được chuẩn hóa riêng biệt về `[0,1]` trên tập ứng viên trước khi trung bình.
+- Công thức hiệu lực trong `compute()`:
 
-- Giá > ngân sách → loại.
-- Carat < carat tối thiểu → loại.
-- Màu < màu tối thiểu yêu cầu → loại.
-- Độ trong < độ trong tối thiểu → loại.
-- Viên có dữ liệu bất thường (giá = 0, carat > 6ct, giá > 2 tỷ) → loại (sanity check — lọc dữ liệu, không phải rule override).
+```js
+Quality = (norm(cut) + norm(cert)) / 2
+```
 
-### Bước 2 · Weighted Scoring Model (WSM)
+- Điều này giữ cho yếu tố cắt vẫn có ý nghĩa thực chất khi trộn dữ liệu Natural và LGD có chứng nhận lệch nhau.
 
-Tính điểm tổng hợp trên tập ứng viên sau lọc:
+### 3. Công thức Finance
 
-**Score = w₁·Size + w₂·Finance + w₃·Quality + w₄·Environment**
+- Finance đã đổi thành chỉ phụ thuộc khả năng giữ giá:
 
-Trong đó mỗi tiêu chí được chuẩn hóa về [0, 1] bằng min-max normalization trên chính tập ứng viên:
+```js
+Finance = norm(resale_rate)
+```
 
-| Tiêu chí  | Công thức giá trị thô       | Ý nghĩa                                                     |
-| ----------- | -------------------------------- | ------------------------------------------------------------- |
-| Size        | `carat / (price/1e6)`          | Carat trên mỗi triệu đồng — càng cao càng "rẻ"       |
-| Finance     | `price × resale_rate`         | Giá trị thu hồi ước tính khi bán lại                  |
-| Quality     | `(cut_score + cert_score) / 2` | Trung bình của giác cắt và chứng nhận                  |
-| Environment | LGD = 0.85, Natural = 0.15       | LGD tránh khai mỏ; carbon không tính vì còn tranh luận |
+- Đã loại bỏ ảnh hưởng trực tiếp của `price` vào điểm Finance.
+- Hai viên cùng `resale_rate` nhưng giá khác nhau sẽ nhận cùng điểm Finance sau chuẩn hóa.
 
-Trọng số w₁–w₄ do người dùng nhập qua slider (0–5★), chuẩn hóa để tổng = 1. Có 4 preset sẵn: Cưới (4,2,3,1), Tích lũy (2,5,3,1), Cân bằng (3,3,3,2), Môi trường (2,2,2,5).
+### 4. Rule R2 (cũ — đã hợp nhất)
 
-Với viên thiếu `cut_raw`: gán `cut_score = 0.85` (tương đương Very Good) — không loại khỏi kết quả.
+- Ngưỡng cảnh báo ngân sách không thực tế (dưới 10 triệu VND và carat ≥ 2.00 ct) từng được triển khai kèm unit test.
+- Sau kỳ hợp nhất final, cảnh báo này bị **loại bỏ**; tên `R2` hiện được dùng cho quy tắc **nhãn "giá cao"** theo giá trên mỗi carat (`R2_HIGH_PRICE_PER_CT`: Natural > 150tr/ct, LGD > 30tr/ct).
 
-### Bước 3 · Rule-based Override (4 quy tắc R1–R4)
+### 5. Rule R4 cũ (nhãn "chưa xác minh" — đã hợp nhất)
 
-Sau khi WSM xếp hạng, hệ thống áp dụng 4 quy tắc nghiệp vụ đơn giản để xử lý các trường hợp mà điểm số thuần túy chưa phản ánh đầy đủ mục đích sử dụng. Các quy tắc không thay thế WSM mà chỉ đóng vai trò override có điều kiện:
+- LGD hoặc viên có `certCode === 0` không bị loại khỏi Top kết quả (hành vi lọc vẫn giữ nguyên ở engine).
+- Nhãn `flagUnverifiedCert` / "chưa xác minh" trên UI đã bị **loại bỏ** trong kỳ hợp nhất; `R4` hiện là quy tắc điều chỉnh theo mục đích (Môi trường / Cưới).
 
-| Rule          | Điều kiện                                                                   | Hành động                                        |
-| ------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- |
-| **R1**  | Không có Natural có chứng nhận đáp ứng ngân sách và carat tối thiểu | Ghi đè: ưu tiên LGD và hiển thị cảnh báo |
-| **R2**  | Giá mỗi carat vượt ngưỡng tham chiếu (Natural > 150tr/ct, LGD > 30tr/ct) | Nhãn "giá cao" trên dòng kết quả |
-| **R3**  | Ngân sách ≥ 100 triệu và có Natural GIA phù hợp                      | Lọc Top chỉ giữ nhóm Natural GIA      |
-| **R4**  | Theo mục đích: **Môi trường** — Natural và LGD có điểm WSM gần nhau (chênh ≤ 0.10); **Cưới** — Top 1 có màu quá thấp (≤ J) | Môi trường: ưu tiên LGD + banner; Cưới: ưu tiên viên sáng hơn (≥ I) lên Top 1 |
+### 6. Eco blend
 
-Các cờ hiển thị trên UI với 3 mức màu:
+- Thêm cơ chế trộn trọng số khi người dùng bật “Ưu tiên thân thiện môi trường”.
+- Công thức:
 
-- 🔴 Đỏ (override): R1, R4 (Môi trường) — hệ thống chủ động sắp xếp lại Top.
-- 🟢 Xanh ngọc (info): R3, R4 (Cưới) — ghi chú điều chỉnh nhẹ.
-- Nhãn nhỏ trên từng dòng kết quả: "giá cao" (R2).
+```text
+w_final = 0.6 * w_base + 0.4 * w_eco
+```
 
-## 5. Những gì đã thực hiện theo trình tự
+- Vector eco sau chuẩn hóa nội bộ:
 
-### Giai đoạn 1 · Khảo sát và thiết kế
+```text
+[0.18, 0.18, 0.18, 0.45]
+```
 
-- Khảo sát `index.html` prototype có sẵn (nhúng cứng 785 dòng thô), `data_clean.xlsx` (785×14), `data_ready.xlsx` (763×17 + cleaning_report).
-- Xác nhận bảng mã hóa color/clarity/cut/cert khớp giữa code và Excel.
-- Chốt 3 quyết định: dùng data_ready 763 dòng, tách dữ liệu thành file riêng, giữ chiều env score (LGD > Natural).
+- Eco-blend ảnh hưởng đến điểm WSM và thứ hạng ở Bước 2.
+- Checkbox eco không thay đổi trực tiếp giá trị slider; slider vẫn hiển thị lựa chọn gốc của người dùng.
 
-### Giai đoạn 2 · Nạp dữ liệu động từ Excel
+### 7. Rule R9 → R4 (Môi trường)
 
-- Ban đầu tách DATA thành `data.js` tĩnh sinh bởi `build_data.py`. Sau đó nâng cấp thành nạp động hoàn toàn từ xlsx.
-- Copy `jszip.min.js` từ runtime vào dự án (không tải mạng).
-- Viết `xlsx-loader.js`: fetch file xlsx → JSZip giải nén → parse `sharedStrings.xml`, `workbook.xml` (tìm sheet tên "data_ready"), `sheetN.xml` → gán `DATA` và `META`.
-- Sửa lỗi header inlineStr (openpyxl ghi header dạng inline string, không phải sharedString) — ban đầu loader trả 0 dòng vì không xử lý đúng loại cell này.
-- Xóa `data.js` và `build_data.py` sau khi chuyển hẳn sang nạp động.
+- Loại bỏ hành vi cũ ép LGD lên Top 1.
+- Xóa epsilon tạm `1.045e-4`.
+- Đổi cách đo độ tương đương sang khoảng cách Chebyshev trên ba tiêu chí đã chuẩn hóa, **không bao gồm Environment**:
+  - Size.
+  - Finance.
+  - Quality.
+- Ngưỡng mới (đổi tên theo đánh số final):
 
-### Giai đoạn 3 · Tách CSS và JS khỏi HTML
+```js
+R4_MAX_CRITERION_GAP = 0.10
+```
 
-- Trích 226 dòng CSS → `style.css`.
-- Trích ~230 dòng inline script → `app.js`.
-- Dọn `index.html` còn 176 dòng markup sạch, sửa trùng lặp thẻ meta.
-- Kiểm tra: 0 thẻ `<style>`, 0 script inline, đúng 3 thẻ `<script src>`.
+- Logic R4 (Môi trường) mới:
+  1. Lấy Top 8 sau eco-blend.
+  2. Nếu Top 1 không phải LGD thì không kích hoạt R4.
+  3. Lọc riêng các ứng viên Natural từ phần còn lại của Top 8; không so LGD khác với Top 1.
+  4. Nếu không còn Natural nào thì không kích hoạt R4 và không gây runtime error.
+  5. Với mỗi Natural, tính:
 
-### Giai đoạn 4 · Phát triển bộ quy tắc chuyên gia
+```js
+gap = max(abs(Size gap), abs(Finance gap), abs(Quality gap))
+```
 
-- Đề xuất 10 rule R1–R10 kèm bằng chứng thống kê từ data.
-- Người dùng phản hồi chi tiết từng rule: đồng ý 8, sửa ngưỡng R2 (15tr→10tr), phát hiện lỗi nghiêm trọng R4 (toàn bộ LGD cert = "Không rõ" sẽ bị loại hết nếu giữ nguyên), đề xuất thêm R11.
-- Chốt phương án R4: cảnh báo thay vì loại bỏ.
-- Triển khai rule engine đầy đủ trong `app.js`, tích hợp hiển thị flags đa màu trên banner + badge nhỏ trên từng dòng bảng.
-- Kiểm thử với data thật: tất cả PASS.
-- Hợp nhất final: rút gọn còn đúng 4 quy tắc chính R1–R4 (sanity check đưa về lọc dữ liệu ở Bước 1, bỏ các cảnh báo/nhãn phụ không thuộc 4 quy tắc).
+6. Chọn Natural có gap nhỏ nhất.
+7. Nếu gap nhỏ nhất `<= 0.10`, bật `ecoOverride = true`, hiển thị flag R4 và banner eco.
 
-### Giai đoạn 5 · Kiểm thử
+- R4 (Môi trường) hiện chỉ đóng vai trò **giải thích**, không hoán đổi hay sort lại danh sách kết quả.
 
-Sử dụng headless DOM stub (Node.js VM context) thay cho browser thật vì sandbox chặn Chromium:
+### 8. Purpose và preset
 
-| Test                    | Mô tả                                                    | Kết quả |
-| ----------------------- | ---------------------------------------------------------- | --------- |
-| Nạp dữ liệu động   | DATA.length === 763, META khớp cleaning_report            | PASS      |
-| Hard Filter mặc định | filtered = 200 viên (budget 60tr, ≥0.5ct, D-F, FL-VS2)   | PASS      |
-| WSM chuẩn hóa         | Tất cả sub-score ∈ [0,1], sắp xếp giảm dần          | PASS      |
-| R1 Override             | Budget 25tr & ≥1ct → override=true, top1 là LGD         | PASS      |
-| R2 Price-per-carat      | Viên vượt ngưỡng 150tr/ct (Natural) / 30tr/ct (LGD) → nhãn "giá cao" | PASS |
-| R3 Premium GIA          | Budget ≥100tr → Top chỉ còn Natural GIA                | PASS      |
-| R4 Môi trường           | Eco bật + LGD dẫn đầu + chênh WSM ≤ 0.10 → override LGD | PASS      |
-| R4 Cưới                 | Top 1 màu ≤ J → đưa viên sáng hơn (≥ I) lên Top 1      | PASS      |
-| Sanity filter           | Không loại nhầm viên hợp lệ (filtered vẫn 200)      | PASS      |
-| Sau tách file          | CSS/script tách xong, runtime hoạt động bình thường | PASS      |
+- UI Step 1 chỉ còn ba mục đích:
+  - Nhẫn cưới: `wedding`.
+  - Tích trữ: `invest`.
+  - Quà tặng / Cá nhân: `gift`.
+- Đã xóa nút `balanced` và `eco` khỏi UI.
+- Preset trọng số hiện tại:
 
-## 6. Hướng chạy app
+| Purpose       | Size | Finance | Quality | Environment |
+| ------------- | ---: | ------: | ------: | ----------: |
+| Wedding       |    3 |       2 |       4 |           1 |
+| Investment    |    2 |       5 |       3 |           1 |
+| Gift personal |    3 |       3 |       3 |           2 |
 
-Chi tiết xem [README.md](README.md). Tóm tắt:
+### 9. Result page
 
-- Mở trực tiếp `index.html` trong trình duyệt, hoặc
-- Chạy `python3 -m http.server 8765` rồi mở `http://localhost:8765`.
+- Bannereco riêng vẫn giữ nguyên nội dung:
 
-## 7. Hạn chế hiện tại và hướng phát triển
+```text
+Đã ưu tiên kim cương nhân tạo vì tương đương chất lượng, thân thiện môi trường hơn.
+```
 
-**Hạn chế:**
+- Banner chỉ hiển thị khi:
 
-- 118 viên LGD đều thiếu chứng nhận — không thể xác minh chất lượng thực, chỉ có thể cảnh báo.
-- 126 viên thiếu cut_raw, phải gán điểm trung tính — giảm độ chính xác tiêu chí Quality cho nhóm này.
-- Giá và thông tin sản phẩm lấy từ web cửa hàng tại một thời điểm, chưa có cơ chế cập nhật tự động.
+```js
+ecoPreferred && ecoOverride
+```
 
-**Hướng phát triển:**
+- Nhờ guard mới, banner không hiện khi Natural vẫn đứng Top 1.
 
-- Bổ sung chứng nhận IGI Lab-Grown Report cho LGD (cải thiện R4 từ cảnh báo → lọc mạnh hơn).
-- Thêm tính năng so sánh 2 viên cạnh nhau (A/B comparison).
-- Lưu lịch sử tìm kiếm người dùng vào localStorage.
-- Xuất kết quả Top 5 ra PDF hoặc ảnh chia sẻ.
+## Kiểm thử
+
+Bộ test trong `test/engine.test.js` hiện chạy **11/11 pass**:
+
+1. Quality normalization keeps cut meaningful when certificates diverge.
+2. Finance score depends on resale rate rather than price.
+3. R2 flags stones priced above the reference per-carat threshold.
+4. Eco blend preserves total weight and applies the configured ratio.
+5. R4 explains a close LGD alternative only when it already leads with eco enabled.
+6. R4 does not activate when a natural candidate leads despite eco preference.
+7. R4 ignores alternatives that differ by more than the criterion gap limit.
+8. R3 removes non-GIA stones when a GIA candidate is present.
+9. R3 stays inactive when the premium shortlist has no GIA stone.
+10. R4 handles an all-LGD shortlist without runtime errors.
+11. Eco blend is hidden from slider values and exposed in compute state.
+
+## Kết quả kiểm tra cú pháp
+
+Các lệnh sau đã chạy:
+
+```bash
+node --check diamond-config.js
+node --check app.js
+node --check test/engine.test.js
+```
+
+Cả ba file đều hợp lệ về cú pháp.
+
+## Hạn chế đã biết
+
+- Banner R4 (Môi trường) vẫn có giới hạn thiết kế: nếu LGD vốn mạnh hơn trên ba tiêu chí phi-môi trường nhưng từng tiêu chí vẫn chênh `<= 0.10`, hệ thống vẫn mô tả ưu tiên theo môi trường cho trường hợp tổng thể tương đương.
+- Không làm DB/API thật vì repo là frontend tĩnh; enum purpose chỉ chuẩn hóa ở tầng frontend nội bộ.
