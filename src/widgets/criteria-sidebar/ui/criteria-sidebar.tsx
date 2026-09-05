@@ -110,7 +110,9 @@ export function CriteriaSidebar({ meta }: { meta: DatasetMeta }) {
           <ToggleGroup
             type="single"
             value={s.purpose}
-            onValueChange={(v) => v && s.setPurpose(v as Purpose)}
+            // Radix reports "" when the active item is clicked again. The legacy UI
+            // re-applied the preset on every click, so we do the same instead of deselecting.
+            onValueChange={(v) => s.setPurpose((v || s.purpose) as Purpose)}
             className="w-full overflow-hidden rounded-[2px] border border-line"
           >
             {PURPOSE_ORDER.map((p) => (

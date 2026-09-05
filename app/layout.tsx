@@ -10,7 +10,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi" className={fontClassNames}>
+    // suppressHydrationWarning: browser extensions (dark-mode, translation, Grammarly…)
+    // add their own classes to <html> before React hydrates, which triggers a harmless
+    // attribute-mismatch warning. Suppression applies to this element's attributes only.
+    <html lang="vi" className={fontClassNames} suppressHydrationWarning>
       <body>
         <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
       </body>

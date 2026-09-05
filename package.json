@@ -9,9 +9,12 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "fsd": "steiger ./src",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fsd": "steiger ./src"
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm run test && npm run test:e2e"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -27,6 +30,7 @@
   },
   "devDependencies": {
     "@feature-sliced/steiger-plugin": "^0.6.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22",
     "@types/react": "^19",

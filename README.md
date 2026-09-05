@@ -1,62 +1,88 @@
 # Kính Lúp Kim Cương — Decision Support System
 
-Hệ thống hỗ trợ ra quyết định chọn mua kim cương, chạy hoàn toàn phía client (không cần backend).
+Hệ thống hỗ trợ ra quyết định chọn mua kim cương. Ứng dụng Next.js 16 chạy hoàn toàn phía client (không cần backend): trình duyệt tự đọc `public/data_ready.xlsx` khi mở trang.
 
 ## Cách chạy
 
-### Cách 1: Mở trực tiếp (nhanh nhất)
-
-1. Mở thư mục dự án.
-2. Nhấp đúp vào `index.html` (hoặc kéo thả vào trình duyệt Chrome/Edge/Firefox).
-
-App sẽ tự đọc dữ liệu từ `data_ready.xlsx` ngay khi mở trang.
-
-> Lưu ý: một số trình duyệt chặn `fetch()` qua giao thức `file://`. Nếu trang hiển thị "Không đọc được data_ready.xlsx", hãy dùng cách 2.
-
-### Cách 2: Chạy local server (khuyến nghị)
-
-Cần có Python 3 hoặc Node.js.
-
-Với Python:
+Cần Node.js ≥ 20.
 
 ```bash
-cd thu-muc-du-an
-python3 -m http.server 8765
+npm install
+npm run dev
 ```
 
-Với Node.js:
+Mở `http://localhost:3000`.
+
+Build production:
 
 ```bash
-npx serve .
+npm run build
+npm run start
 ```
 
-Sau đó mở trình duyệt tại địa chỉ mà terminal in ra, ví dụ `http://localhost:8765`.
+## Kiểm thử
 
-## Cấu trúc file
+| Lệnh                 | Nội dung                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| `npm test`         | Unit test (Vitest): engine 3 bước, 5 use case golden trên `data_ready.xlsx`, loader xlsx, store |
+| `npm run test:e2e` | End-to-end (Playwright): 5 use case demo chạy qua giao diện thật + smoke test           |
+| `npm run test:all` | Cả hai                                                                                |
+| `npm run typecheck`| TypeScript                                                                            |
+| `npm run lint`     | ESLint                                                                                |
+| `npm run fsd`      | Kiểm tra kiến trúc Feature-Sliced Design (steiger)                                    |
 
-| File                | Vai trò                                                             |
-| ------------------- | -------------------------------------------------------------------- |
-| `index.html`      | Giao diện chính, chỉ chứa markup                                 |
-| `style.css`       | Toàn bộ style                                                      |
-| `app.js`          | Logic UI và thuật toán`compute()` 3 bước                      |
-| `xlsx-loader.js`  | Đọc`data_ready.xlsx` lúc chạy bằng JSZip + XML parsing        |
-| `jszip.min.js`    | Thư viện giải nén file`.xlsx`                                  |
-| `data_ready.xlsx` | Dữ liệu đầu vào (sheet`data_ready`, 763 viên sau làm sạch) |
-| `data_clean.xlsx` | Dữ liệu thô gốc (tham khảo)                                     |
+Lần đầu chạy e2e cần tải trình duyệt: `npx playwright install chromium`.
+
+## Kiến trúc — Feature-Sliced Design
+
+Next.js chỉ dùng thư mục `app/` ở gốc làm router (re-export mỏng). Toàn bộ mã nguồn nằm trong `src/` theo các layer FSD; layer `pages` của FSD được đặt tên `views` vì Next.js sẽ coi `src/pages` là Pages Router.
+
+```
+app/                    # Next.js router: layout.tsx (font, CSS), page.tsx → views/diamond-dss
+public/data_ready.xlsx  # dữ liệu đầu vào, đọc lúc chạy
+src/
+├── app/                # FSD app layer: globals.css (token màu + shadcn), fonts
+├── views/diamond-dss   # trang duy nhất: nạp dữ liệu, gọi compute(), xếp các widget
+├── widgets/            # từng khối giao diện
+│   ├── masthead            tiêu đề + số liệu tập dữ liệu
+│   ├── criteria-sidebar    ngân sách, carat, mục đích, 4 trọng số, eco, màu, độ trong
+│   ├── recommendation-banner  kết luận Tự nhiên / LGD + các cờ [R1–R4]
+│   ├── tradeoff-cards      so sánh phương án Tự nhiên vs LGD
+│   ├── environment-impact  bảng tác động môi trường (tĩnh)
+│   ├── market-loupe        biểu đồ SVG carat × giá (log)
+│   ├── results-table       Top 5 đề xuất
+│   └── app-footer
+├── features/
+│   ├── rank-diamonds       ENGINE: hard-filter.ts → wsm.ts → rules.ts (R1–R4) → compute.ts
+│   └── configure-criteria  store zustand cho mọi thứ người dùng chỉnh
+├── entities/
+│   ├── diamond             kiểu Diamond, bảng mã, buildMeta, loader xlsx (JSZip + DOMParser)
+│   └── criteria            kiểu Criteria, Purpose, PRESETS, giá trị mặc định
+└── shared/
+    ├── ui                  shadcn/ui (slider, select, table, …) + paired-number-input, field
+    └── lib                 fmtVND, fmtTrieu, normalize, cn
+e2e/                    # Playwright specs + page object
+```
+
+Quy tắc import: chỉ đi xuống `views → widgets → features → entities → shared`, mỗi slice chỉ lộ ra qua `index.ts`. `npm run fsd` kiểm tra tự động.
+
+Giao diện: Tailwind CSS v4 + shadcn/ui. Bảng màu gốc được ánh xạ vào biến CSS của shadcn trong `src/app/styles/globals.css`.
 
 ## Cập nhật dữ liệu
 
-Chỉ cần thay thế `data_ready.xlsx` bằng file mới (giữ nguyên cấu trúc cột) rồi tải lại trang. Không cần build lại gì cả.
+Thay `public/data_ready.xlsx` bằng file mới (giữ nguyên cấu trúc cột, sheet tên `data_ready`) rồi tải lại trang. Không cần build lại. Mọi khoảng slider, option màu / độ trong, số liệu masthead và footer đều suy ra từ dữ liệu.
 
 ## Thuật toán
 
-1. **Hard Filter** — loại viên vượt ngân sách, nhỏ hơn carat tối thiểu, hoặc không đạt chuẩn màu / độ trong.
-2. **Weighted Scoring Model** — chuẩn hóa 4 tiêu chí về `[0, 1]` rồi tính điểm tổng hợp theo trọng số người dùng nhập.
-3. **Rule-based Override** — sau khi WSM xếp hạng, hệ thống áp dụng 4 quy tắc nghiệp vụ R1–R4 (ưu tiên LGD khi không còn phương án Tự nhiên, nhãn "giá cao", ưu tiên GIA ở phân khúc cao cấp, điều chỉnh theo mục đích) để kết quả phù hợp hơn với yêu cầu sử dụng.
+Hàm `compute(criteria, data)` trong `src/features/rank-diamonds/model/compute.ts` là hàm thuần (không phụ thuộc DOM), gồm 3 bước:
+
+1. **Hard Filter** (`hard-filter.ts`) — loại viên vượt ngân sách, nhỏ hơn carat tối thiểu, hoặc không đạt chuẩn màu / độ trong.
+2. **Weighted Scoring Model** (`wsm.ts`) — chuẩn hóa 4 tiêu chí về `[0, 1]` rồi tính `score = w1·Size + w2·Finance + w3·Quality + w4·Environment` theo trọng số người dùng nhập (`eco-blend.ts` pha trộn 60/40 khi bật ưu tiên môi trường).
+3. **Rule-based Override** (`rules.ts`) — áp dụng 4 quy tắc nghiệp vụ R1–R4 (ưu tiên LGD khi không còn phương án Tự nhiên, nhãn "giá cao", ưu tiên GIA ở phân khúc cao cấp, điều chỉnh theo mục đích). Ngưỡng nằm trong `config/rules.ts`.
 
 ## 5 use cases demo
 
-> Mỗi expected value bên dưới đã được xác minh bằng chính engine `compute()` 3 bước chạy trên `data_ready.xlsx` (763 viên · 645 Tự nhiên · 118 LGD) và unit test trong `test/engine.test.js`.
+> Mỗi expected value bên dưới được xác minh bằng unit test (`golden-use-cases.test.ts`) và e2e test (`e2e/use-cases.spec.ts`) chạy trên `data_ready.xlsx` (763 viên · 645 Tự nhiên · 118 LGD).
 
 ### UC1 · Ngân sách hạn chế, cần ≥ 1 ct — R1
 - Input: preset `Nhẫn cưới`; Budget `25.000.000 đ`; Carat `≥ 1.00`; màu `D–J`; độ trong `FL–SI2`.
@@ -81,6 +107,6 @@ Chỉ cần thay thế `data_ready.xlsx` bằng file mới (giữ nguyên cấu 
 ### UC5 · Ưu tiên môi trường — Eco blend (điều kiện R4 Môi trường)
 - Input: preset `Quà tặng / Cá nhân`; Budget `120.000.000 đ`; màu `D–F`; độ trong `FL–VS2`. Chạy 2 lần: (a) mặc định, (b) bật `Ưu tiên thân thiện môi trường`.
 - Expected: (a) Top 5 toàn Tự nhiên GIA + cờ `[R3]`; (b) trọng số môi trường tăng 0.182 → 0.291 (blend 60/40 với vector eco `[0.18, 0.18, 0.18, 0.45]`), Top 5 đảo sang toàn LGD (dẫn đầu `1.73ct E/VS1 · 6.500.000 đ`) và `[R3]` tắt vì Top 8 không còn Natural GIA.
-- Talking point trung thực: banner ghi đè `[R4]` chỉ bật khi LGD dẫn đầu và Natural gần nhất chênh ≤ 0.10 trên cả 3 tiêu chí size/finance/quality; trên `data_ready.xlsx` khoảng cách tối thiểu ≈ 1.0 nên banner không kích hoạt với dữ liệu thật — điều kiện này được xác minh bằng unit test dữ liệu giả lập (`test/engine.test.js`).
+- Talking point trung thực: banner ghi đè `[R4]` chỉ bật khi LGD dẫn đầu và Natural gần nhất chênh ≤ 0.10 trên cả 3 tiêu chí size/finance/quality; trên `data_ready.xlsx` khoảng cách tối thiểu ≈ 1.0 nên banner không kích hoạt với dữ liệu thật — điều kiện này được xác minh bằng unit test dữ liệu giả lập (`compute.test.ts`).
 
-> Demo tip: chạy lần lượt UC1 → UC5 theo thứ tự trên, chụp lại Top 5 + các cờ `[R…]` sau mỗi bước; UC5 nhớ chụp cả 2 trạng thái của nút "Ưu tiên thân thiện môi trường".
+> Demo tip: nhấn lại nút mục đích trước mỗi use case để nạp đúng preset trọng số (giá trị khởi tạo của slider là 4/2/3/1, khác preset `Nhẫn cưới` 3/2/4/1 — giữ nguyên hành vi bản gốc). Chạy lần lượt UC1 → UC5, chụp lại Top 5 + các cờ `[R…]` sau mỗi bước; UC5 nhớ chụp cả 2 trạng thái của nút "Ưu tiên thân thiện môi trường".
