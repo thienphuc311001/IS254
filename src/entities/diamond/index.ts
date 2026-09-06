@@ -5,3 +5,5 @@ export { loadDiamondData, parseDiamondXlsx, type DiamondDataset } from "./api/lo
 export { useDiamondDataset, type DiamondDatasetState } from "./api/use-diamond-dataset";
 export { OriginBadge, ORIGIN_LABEL } from "./ui/origin-badge";
 export { OriginDot } from "./ui/origin-dot";
+/** Test fixture (tree-shaken from the production bundle when unused). */
+export { makeDiamond } from "./model/fixtures";

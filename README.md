@@ -24,8 +24,8 @@ npm run start
 
 | Lệnh                 | Nội dung                                                                              |
 | -------------------- | ------------------------------------------------------------------------------------- |
-| `npm test`         | Unit test (Vitest): engine 3 bước, 5 use case golden trên `data_ready.xlsx`, loader xlsx, store |
-| `npm run test:e2e` | End-to-end (Playwright): 5 use case demo chạy qua giao diện thật + smoke test           |
+| `npm test`         | Unit + component test (Vitest, React Testing Library): engine 3 bước, 5 use case golden trên `data_ready.xlsx`, loader xlsx, store, các widget |
+| `npm run test:e2e` | End-to-end (Playwright): 5 use case demo chạy qua giao diện thật + smoke test. Tự build và chạy production server ở cổng 3100; nếu đang có `npm run dev`, dùng `PLAYWRIGHT_BASE_URL=http://localhost:3000 npm run test:e2e` |
 | `npm run test:all` | Cả hai                                                                                |
 | `npm run typecheck`| TypeScript                                                                            |
 | `npm run lint`     | ESLint                                                                                |

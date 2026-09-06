@@ -66,10 +66,10 @@ export function MarketLoupe({ data, filtered, top5, budget, minCarat }: MarketLo
   const caratX = x(Math.min(minCarat, maxCarat));
 
   return (
-    <section className="mb-5 rounded-[2px] border border-line bg-panel px-5 pt-5 pb-[10px]">
+    <section className="mb-5 rounded-xs border border-line bg-panel px-5 pt-5 pb-2.5">
       <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-1.5">
         <SectionTitle>Bản đồ thị trường — Carat × Giá (thang log)</SectionTitle>
-        <div className="flex gap-4 text-[11.5px] text-ink-faint">
+        <div className="flex gap-4 text-xs text-ink-faint">
           <span className="inline-flex items-center gap-1.5">
             <OriginDot origin="natural" className="size-2" />
             Tự nhiên
@@ -124,7 +124,7 @@ export function MarketLoupe({ data, filtered, top5, budget, minCarat }: MarketLo
         })}
       </svg>
 
-      <Caption className="px-[2px] pt-2 pb-[14px]">
+      <Caption className="px-0.5 pt-2 pb-3.5">
         Mỗi điểm là một viên kim cương trong dữ liệu. Điểm mờ nằm ngoài bộ lọc hiện tại; điểm sáng
         viền trắng là 5 lựa chọn được xếp hạng cao nhất bên dưới.
       </Caption>

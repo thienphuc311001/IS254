@@ -34,14 +34,14 @@ function Slider({
       min={min}
       max={max}
       className={cn(
-        "relative flex w-full touch-none items-center select-none py-[6px] data-[disabled]:opacity-50",
+        "relative flex w-full touch-none items-center select-none py-1.5 data-[disabled]:opacity-50",
         className
       )}
       {...props}
     >
       <SliderPrimitive.Track
         data-slot="slider-track"
-        className="relative h-[2px] w-full grow overflow-hidden bg-line"
+        className="relative h-0.5 w-full grow overflow-hidden bg-line"
       >
         <SliderPrimitive.Range data-slot="slider-range" className="absolute h-full bg-line" />
       </SliderPrimitive.Track>
@@ -49,7 +49,7 @@ function Slider({
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
-          className="block size-[13px] shrink-0 cursor-pointer rounded-full border-2 border-background bg-ink shadow-[0_0_0_1px_var(--ink-dim)] transition-[box-shadow] focus-visible:shadow-[0_0_0_2px_var(--gold)] focus-visible:outline-hidden disabled:pointer-events-none"
+          className="block size-3 shrink-0 cursor-pointer rounded-full border-2 border-background bg-ink ring-1 ring-ink-dim transition-shadow focus-visible:ring-2 focus-visible:ring-gold focus-visible:outline-hidden disabled:pointer-events-none"
         />
       ))}
     </SliderPrimitive.Root>

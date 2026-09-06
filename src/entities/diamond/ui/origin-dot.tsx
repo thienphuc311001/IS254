@@ -7,7 +7,7 @@ export function OriginDot({ origin, className }: { origin: DiamondOrigin; classN
     <span
       aria-hidden
       className={cn(
-        "inline-block size-[9px] rounded-full",
+        "inline-block size-2 rounded-full",
         origin === "natural" ? "bg-gold" : "bg-teal",
         className,
       )}

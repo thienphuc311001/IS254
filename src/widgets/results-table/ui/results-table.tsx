@@ -17,7 +17,7 @@ function ScoreBar({ score, origin }: { score: number; origin: RankedDiamond["ori
   const pct = (score * 100).toFixed(0);
   return (
     <>
-      <span className="mr-1.5 inline-block h-1 w-[60px] overflow-hidden rounded-[2px] bg-line align-middle">
+      <span className="mr-1.5 inline-block h-1 w-16 overflow-hidden rounded-xs bg-line align-middle">
         <i
           className={`block h-full ${origin === "natural" ? "bg-gold" : "bg-teal"}`}
           style={{ width: `${pct}%` }}
@@ -29,7 +29,7 @@ function ScoreBar({ score, origin }: { score: number; origin: RankedDiamond["ori
 }
 
 const th =
-  "h-auto whitespace-nowrap border-b border-line px-3.5 py-2.5 text-left font-mono text-[10.5px] font-normal uppercase tracking-[.06em] text-ink-faint";
+  "h-auto whitespace-nowrap border-b border-line px-3.5 py-2.5 text-left font-mono text-xs font-normal uppercase tracking-wider text-ink-faint";
 const td = "whitespace-nowrap border-b border-line px-3.5 py-3 text-ink-dim";
 
 export interface ResultsTableProps {
@@ -41,14 +41,14 @@ export interface ResultsTableProps {
 /** "Top 5 đề xuất": the final ranked shortlist with badges, score bars and store links. */
 export function ResultsTable({ top5, matchCount, total }: ResultsTableProps) {
   return (
-    <section className="overflow-hidden rounded-[2px] border border-line bg-panel">
-      <div className="border-b border-line px-5 pt-[18px] pb-3">
+    <section className="overflow-hidden rounded-xs border border-line bg-panel">
+      <div className="border-b border-line px-5 pt-4 pb-3">
         <SectionTitle className="mb-1">Top 5 đề xuất</SectionTitle>
-        <p className="m-0 text-[12px] text-ink-faint">
+        <p className="m-0 text-xs text-ink-faint">
           {matchCount} viên khớp bộ lọc trong tổng số {total} · hiển thị 5 điểm cao nhất
         </p>
       </div>
-      <Table className="text-[12.5px]">
+      <Table className="text-sm">
         <TableHeader>
           <TableRow className="border-0 hover:bg-transparent">
             {HEADERS.map((h, i) => (
@@ -61,14 +61,14 @@ export function ResultsTable({ top5, matchCount, total }: ResultsTableProps) {
         <TableBody>
           {!top5.length ? (
             <TableRow className="border-0 hover:bg-transparent">
-              <TableCell colSpan={12} className="px-5 py-10 text-center text-[13px] text-ink-faint">
+              <TableCell colSpan={12} className="px-5 py-10 text-center text-sm text-ink-faint">
                 Không tìm thấy kim cương phù hợp — hãy điều chỉnh bộ lọc bên trái.
               </TableCell>
             </TableRow>
           ) : (
             top5.map((d, i) => (
               <TableRow key={d.key} className="border-0 last:[&>td]:border-b-0 hover:bg-panel-2">
-                <TableCell className={`${td} font-serif text-[16px] text-ink-faint`}>{i + 1}</TableCell>
+                <TableCell className={`${td} font-serif text-base text-ink-faint`}>{i + 1}</TableCell>
                 <TableCell className={td}>
                   <OriginBadge origin={d.origin} />
                   {d.flagOverpriced && (
@@ -76,7 +76,7 @@ export function ResultsTable({ top5, matchCount, total }: ResultsTableProps) {
                       <TooltipTrigger asChild>
                         <Badge
                           variant="outline"
-                          className="ml-[3px] cursor-help rounded-[12px] border-coral/30 bg-coral/10 px-[5px] py-px align-middle font-mono text-[9.5px] font-normal tracking-[.02em] text-coral"
+                          className="ml-1 cursor-help rounded-full border-coral/30 bg-coral/10 px-1 py-px align-middle font-mono text-xs font-normal text-coral"
                         >
                           giá cao
                         </Badge>
@@ -101,7 +101,7 @@ export function ResultsTable({ top5, matchCount, total }: ResultsTableProps) {
                     href={d.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-[2px] border border-line px-2.5 py-[5px] font-mono text-[11.5px] text-ink no-underline transition-colors hover:border-gold hover:text-gold"
+                    className="rounded-xs border border-line px-2.5 py-1 font-mono text-xs text-ink no-underline transition-colors hover:border-gold hover:text-gold"
                   >
                     Xem →
                   </a>

@@ -13,7 +13,7 @@ export function OriginBadge({ origin, className }: { origin: DiamondOrigin; clas
     <Badge
       variant="outline"
       className={cn(
-        "rounded-full px-[7px] py-[2px] font-mono text-[10.5px] font-normal tracking-[.03em]",
+        "rounded-full px-2 py-0.5 font-mono text-xs font-normal",
         origin === "natural"
           ? "border-gold/40 bg-gold/12 text-gold"
           : "border-teal/40 bg-teal/12 text-teal",

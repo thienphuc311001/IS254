@@ -14,11 +14,11 @@ export function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("mb-[22px] last:mb-0", className)}>
-      <div className="mb-[10px] flex items-baseline justify-between text-[11.5px] uppercase tracking-[.08em] text-ink-dim">
+    <div className={cn("mb-5 last:mb-0", className)}>
+      <div className="mb-2.5 flex items-baseline justify-between text-xs uppercase tracking-wider text-ink-dim">
         <span>{label}</span>
         {value !== undefined && (
-          <span className="font-mono text-[12.5px] tracking-normal text-gold">{value}</span>
+          <span className="font-mono text-sm tracking-normal text-gold">{value}</span>
         )}
       </div>
       {children}
@@ -31,7 +31,7 @@ export function SectionTitle({ className, ...props }: React.ComponentProps<"div"
   return (
     <div
       className={cn(
-        "font-mono text-[12px] uppercase tracking-[.06em] text-ink-dim",
+        "font-mono text-xs uppercase tracking-wider text-ink-dim",
         className,
       )}
       {...props}
@@ -41,5 +41,5 @@ export function SectionTitle({ className, ...props }: React.ComponentProps<"div"
 
 /** Muted caption paragraph. */
 export function Caption({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("text-[11.5px] text-ink-faint", className)} {...props} />;
+  return <div className={cn("text-xs text-ink-faint", className)} {...props} />;
 }

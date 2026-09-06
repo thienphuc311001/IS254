@@ -18,9 +18,13 @@ const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min)
 
 /**
  * Number box that sits next to a slider.
- * While typing, a value inside [min, max] is applied immediately (live preview);
- * on blur / Enter the value is clamped into range and applied.
- * Mirrors the `input` / `change` handlers of the legacy app.js.
+ *
+ * - Not focused → shows the committed `value` (so slider moves are reflected immediately).
+ * - Focused → shows what is being typed. A value inside [min, max] is applied at once
+ *   (live preview); on blur / Enter the text is clamped into range and applied.
+ *
+ * This mirrors the `input` / `change` handlers of the legacy app.js without any
+ * "reset state on prop change" bookkeeping: the draft only exists while editing.
  */
 export function PairedNumberInput({
   value,
@@ -32,6 +36,7 @@ export function PairedNumberInput({
   ...rest
 }: PairedNumberInputProps) {
   const [draft, setDraft] = React.useState<string | null>(null);
+  const isEditing = draft !== null;
 
   const commit = () => {
     const n = Number(draft ?? value);
@@ -46,19 +51,20 @@ export function PairedNumberInput({
       min={min}
       max={max}
       step={step}
-      value={draft ?? String(value)}
+      value={isEditing ? draft : String(value)}
+      onFocus={() => setDraft(String(value))}
       onChange={(e) => {
         const text = e.target.value;
         setDraft(text);
         const n = Number(text);
-        if (Number.isFinite(n) && text !== "" && n >= min && n <= max) onCommit(n);
+        if (text !== "" && Number.isFinite(n) && n >= min && n <= max) onCommit(n);
       }}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Enter") e.currentTarget.blur();
       }}
       className={cn(
-        "h-auto w-full rounded-lg border-line bg-panel-2 px-2 py-1.5 font-mono text-[12px] text-ink shadow-none focus-visible:border-gold focus-visible:ring-0 md:text-[12px]",
+        "h-auto w-full rounded-lg border-line bg-panel-2 px-2 py-1.5 font-mono text-xs text-ink shadow-none focus-visible:border-gold focus-visible:ring-0 md:text-xs",
         className,
       )}
       {...rest}

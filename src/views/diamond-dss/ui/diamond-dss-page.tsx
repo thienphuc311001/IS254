@@ -12,8 +12,9 @@ import { EnvironmentImpact } from "@/widgets/environment-impact";
 import { MarketLoupe } from "@/widgets/market-loupe";
 import { ResultsTable } from "@/widgets/results-table";
 import { AppFooter } from "@/widgets/app-footer";
+import { PageSkeleton } from "./page-skeleton";
 
-const wrap = "mx-auto max-w-[1240px] px-7 pt-9 pb-20";
+const wrap = "mx-auto max-w-7xl px-7 pt-9 pb-20";
 
 /**
  * The single page of the app. Loads the dataset, feeds the user's criteria into the
@@ -40,7 +41,7 @@ export function DiamondDssPage() {
   if (dataset.status === "loading") {
     return (
       <main className={wrap}>
-        <p className="font-mono text-[12px] text-ink-dim">Đang nạp dữ liệu từ data_ready.xlsx…</p>
+        <PageSkeleton />
       </main>
     );
   }
@@ -48,7 +49,7 @@ export function DiamondDssPage() {
   if (dataset.status === "error" || !meta || !records || !result) {
     return (
       <main className={wrap}>
-        <p className="font-mono text-[12px] text-coral">
+        <p className="font-mono text-xs text-coral">
           Không đọc được data_ready.xlsx
           {dataset.status === "error" ? ` — ${dataset.error}` : ""}
         </p>
@@ -60,7 +61,7 @@ export function DiamondDssPage() {
     <main className={wrap}>
       <Masthead meta={meta} />
 
-      <div className="grid grid-cols-1 items-start gap-6 min-[900px]:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
         <CriteriaSidebar meta={meta} />
 
         <div className="min-w-0">
