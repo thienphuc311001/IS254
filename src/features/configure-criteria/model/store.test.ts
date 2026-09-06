@@ -23,8 +23,9 @@ beforeEach(() => {
 });
 
 describe("criteria store", () => {
-  test("starts with the legacy index.html defaults", () => {
+  test("starts with the documented defaults: wedding preset weights, F / VS2, 60M, 0.5 ct", () => {
     expect(selectCriteria(useCriteriaStore.getState())).toEqual(DEFAULT_CRITERIA);
+    expect(useCriteriaStore.getState().weights).toEqual(PRESETS.wedding);
   });
 
   test("choosing a purpose applies its weight preset", () => {
@@ -36,7 +37,7 @@ describe("criteria store", () => {
 
   test("setWeight changes one slider without touching the others", () => {
     useCriteriaStore.getState().setWeight(3, 5);
-    expect(useCriteriaStore.getState().weights).toEqual([4, 2, 3, 5]);
+    expect(useCriteriaStore.getState().weights).toEqual([3, 2, 4, 5]);
   });
 
   test("budget and carat are clamped to the current bounds", () => {

@@ -23,15 +23,15 @@ export const PRESETS: Record<Purpose, Weights> = {
 };
 
 /**
- * Initial sidebar state. Mirrors the default `value` attributes of the legacy index.html:
- * note the sliders start at [4, 2, 3, 1] even though "Nhẫn cưới" is pre-selected; the
- * wedding preset [3, 2, 4, 1] is only applied when the user clicks a purpose button.
+ * Initial sidebar state. "Nhẫn cưới" is pre-selected, so the weights start at the wedding
+ * preset from Bảng 4 of the report. (The legacy index.html shipped 4/2/3/1 here by mistake,
+ * which made the default screen disagree with the documented preset.)
  */
 export const DEFAULT_CRITERIA: Criteria = {
   budget: 60_000_000,
   minCarat: 0.5,
   purpose: "wedding",
-  weights: [4, 2, 3, 1],
+  weights: [...PRESETS.wedding],
   ecoPreferred: false,
   minColor: "F",
   minClarity: "VS2",

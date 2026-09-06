@@ -18,12 +18,14 @@ beforeEach(() => {
 });
 
 describe("CriteriaSidebar", () => {
-  test("renders the legacy defaults: 60M budget, 0.50 ct, wedding, F / VS2, stars 4/2/3/1", () => {
+  test("renders the defaults: 60M budget, 0.50 ct, wedding preset stars 3/2/4/1, F / VS2", () => {
     render(<CriteriaSidebar meta={meta} />);
     expect(screen.getByText("60.000.000 đ")).toBeInTheDocument();
     expect(screen.getByText("0.50 ct")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Nhẫn cưới" })).toHaveAttribute("data-state", "on");
-    expect(screen.getByText("★★★★☆")).toBeInTheDocument(); // size 4
+    expect(screen.getByText("★★★☆☆")).toBeInTheDocument(); // size 3
+    expect(screen.getByText("★★☆☆☆")).toBeInTheDocument(); // finance 2
+    expect(screen.getByText("★★★★☆")).toBeInTheDocument(); // quality 4
     expect(screen.getByText("★☆☆☆☆")).toBeInTheDocument(); // env 1
     expect(screen.getByRole("combobox", { name: "Màu tối thiểu" })).toHaveTextContent("D–F");
     expect(screen.getByRole("combobox", { name: "Độ tinh khiết" })).toHaveTextContent("FL–VS2");
@@ -41,7 +43,8 @@ describe("CriteriaSidebar", () => {
   test("clicking the already-active purpose re-applies its preset (legacy behaviour)", async () => {
     const user = userEvent.setup();
     render(<CriteriaSidebar meta={meta} />);
-    expect(useCriteriaStore.getState().weights).toEqual([4, 2, 3, 1]);
+    useCriteriaStore.getState().setWeight(0, 5); // user moved a slider away from the preset
+    expect(useCriteriaStore.getState().weights).toEqual([5, 2, 4, 1]);
     await user.click(screen.getByRole("radio", { name: "Nhẫn cưới" }));
     expect(useCriteriaStore.getState().purpose).toBe("wedding");
     expect(useCriteriaStore.getState().weights).toEqual(PRESETS.wedding);
