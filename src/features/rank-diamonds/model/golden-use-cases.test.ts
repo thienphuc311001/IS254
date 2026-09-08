@@ -35,6 +35,23 @@ describe("README demo use cases", () => {
     expect(data.filter((d) => d.origin === "lgd")).toHaveLength(118);
   });
 
+  test("Default screen (Hình 4 / demo part 2): wedding preset, 60M, 0.5 ct → natural GIA, no flags", () => {
+    const r = compute(base, data);
+    expect(r.flags).toEqual([]);
+    expect(r.override).toBe(false);
+    expect(r.filtered).toHaveLength(200);
+    expect(r.top5.every((d) => d.origin === "natural" && d.cert === "GIA")).toBe(true);
+    const top = r.top5[0];
+    expect(top).toMatchObject({ carat: 0.5, color: "D", clarity: "VS1", price: 29_900_000 });
+    // Trade-off cards: biggest natural vs biggest LGD within budget
+    const biggest = (origin: "natural" | "lgd") =>
+      Math.max(...r.filtered.filter((d) => d.origin === origin).map((d) => d.carat));
+    expect(biggest("natural")).toBe(0.96);
+    expect(biggest("lgd")).toBe(4.93);
+    expect(r.filtered.filter((d) => d.origin === "natural")).toHaveLength(99);
+    expect(r.filtered.filter((d) => d.origin === "lgd")).toHaveLength(101);
+  });
+
   test("UC1 · tight budget, ≥ 1 ct → R1 overrides to LGD", () => {
     const r = compute(
       { ...base, budget: 25_000_000, minCarat: 1.0, minColor: "J", minClarity: "SI2" },
