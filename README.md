@@ -108,5 +108,3 @@ Hàm `compute(criteria, data)` trong `src/features/rank-diamonds/model/compute.t
 - Input: preset `Quà tặng / Cá nhân`; Budget `120.000.000 đ`; màu `D–F`; độ trong `FL–VS2`. Chạy 2 lần: (a) mặc định, (b) bật `Ưu tiên thân thiện môi trường`.
 - Expected: (a) Top 5 toàn Tự nhiên GIA + cờ `[R3]`; (b) trọng số môi trường tăng 0.182 → 0.291 (blend 60/40 với vector eco `[0.18, 0.18, 0.18, 0.45]`), Top 5 đảo sang toàn LGD (dẫn đầu `1.73ct E/VS1 · 6.500.000 đ`) và `[R3]` tắt vì Top 8 không còn Natural GIA.
 - Talking point trung thực: banner ghi đè `[R4]` chỉ bật khi LGD dẫn đầu và Natural gần nhất chênh ≤ 0.10 trên cả 3 tiêu chí size/finance/quality; trên `data_ready.xlsx` khoảng cách tối thiểu ≈ 1.0 nên banner không kích hoạt với dữ liệu thật — điều kiện này được xác minh bằng unit test dữ liệu giả lập (`compute.test.ts`).
-
-> Demo tip: nhấn nút mục đích trước mỗi use case để nạp đúng preset trọng số (khi mở trang, slider đã ở preset `Nhẫn cưới` 3/2/4/1). Chạy lần lượt UC1 → UC5, chụp lại Top 5 + các cờ `[R…]` sau mỗi bước; UC5 nhớ chụp cả 2 trạng thái của nút "Ưu tiên thân thiện môi trường".

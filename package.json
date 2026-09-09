@@ -1,8 +1,8 @@
 {
-  "name": "kinh-lup-kim-cuong",
+  "name": "dss-diamond",
   "version": "1.0.0",
   "private": true,
-  "description": "Kính Lúp Kim Cương — Decision Support System chọn mua kim cương (Next.js + FSD)",
+  "description": "DSS Diamond — Decision Support System chọn mua kim cương (Next.js + FSD)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
